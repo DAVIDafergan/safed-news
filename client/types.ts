@@ -1,3 +1,4 @@
+// --- types.ts מעודכן ---
 
 export enum Category {
   NEWS = 'מבזקים',
@@ -12,81 +13,49 @@ export enum Category {
 }
 
 export interface Post {
-  id: string;
+  _id: string; // MongoDB משתמש ב-_id
   title: string;
   excerpt: string;
-  content: string; // HTML content simulation
+  content: string; 
   category: Category;
   author: string;
-  date: string;
+  date: string; // מגיע כ-ISO string מהשרת
   imageUrl: string;
-  imageCredit?: string; // Added field for image credit
+  imageCredit?: string;
   tags: string[];
-  isFeatured: boolean; // For main slider
+  isFeatured: boolean;
   views: number;
-  shortLinkCode: string;
+}
+
+export interface User {
+  _id: string;
+  name: string;
+  email: string;
+  role: 'admin' | 'editor' | 'user';
+  joinedDate: string;
 }
 
 export interface AdSlide {
-  id: string;
+  _id?: string;
   imageUrl: string;
-  videoUrl?: string; // Added video support
+  videoUrl?: string;
   linkUrl: string;
 }
 
 export interface Ad {
-  id: string;
+  _id: string;
   title: string;
   area: 'leaderboard' | 'sidebar' | 'sidebar_video' | 'article_bottom' | 'homepage_mid';
   isActive: boolean;
   slides: AdSlide[];
 }
 
-export interface User {
-  id: string;
-  name: string;
-  email?: string; // Added email
-  password?: string; // For simulation only
-  role: 'admin' | 'editor' | 'writer' | 'user'; // Added 'user'
-  isAuthenticated: boolean;
-  joinedDate?: string;
-}
-
-export interface Comment {
-  id: string;
-  postId: string;
-  userId: string;
-  userName: string;
-  content: string;
-  date: string;
-  likes: number;
-  likedBy: string[]; // User IDs who liked this
-}
-
-export interface ContactMessage {
-  id: string;
-  name: string;
-  email: string;
-  phone?: string; // Added phone number
-  subject: string;
-  message: string;
-  date: string;
-  read: boolean;
-}
-
-export interface NewsletterSubscriber {
-  id: string;
-  email: string;
-  joinedDate: string;
-  isActive: boolean;
-}
-
-export interface AccessibilitySettings {
-  fontSize: number; // 0=normal, 1=large, 2=extra large
-  highContrast: boolean;
-  grayscale: boolean;
-  highlightLinks: boolean;
-  stopAnimations: boolean;
+export interface Alert {
+    _id: string;
+    content: string;
+    title: string;
+    active: boolean;
+    date: string;
 }
 
 export const CATEGORY_COLORS: Record<Category, string> = {
