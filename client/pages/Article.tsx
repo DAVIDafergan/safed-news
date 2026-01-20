@@ -1,15 +1,14 @@
-
 import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, Navigate, Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { CATEGORY_COLORS, Comment } from '../types';
-import { Calendar, User, Eye, Share2, Tag, ThumbsUp, MessageCircle, Send, ArrowUpDown } from 'lucide-react';
+import { Calendar, User, Eye, Share2, Tag, ThumbsUp, MessageCircle, Send, ArrowUpDown, Loader2 } from 'lucide-react';
 import { AdUnit } from '../components/AdUnit';
 import { PostCard } from '../components/PostCard';
 
 export const Article: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const { posts, ads, user, comments, addComment, toggleLikeComment, incrementViews } = useApp();
+  const { posts, ads, user, isLoading, comments, addComment, toggleLikeComment, incrementViews } = useApp();
   const [commentText, setCommentText] = useState('');
   const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'top'>('newest');
 
@@ -40,9 +39,19 @@ export const Article: React.FC = () => {
     return list;
   }, [articleComments, sortBy]);
 
+  // --- התיקון כאן: מונע ניתוק ברענון ---
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <Loader2 className="animate-spin text-red-700" size={48} />
+      </div>
+    );
+  }
+
   if (!post) {
     return <Navigate to="/" />;
   }
+  // -------------------------------------
 
   const categoryColor = CATEGORY_COLORS[post.category] || 'bg-gray-600';
   

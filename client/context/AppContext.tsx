@@ -2,7 +2,6 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import axios from 'axios';
 import { Post, Ad, User, Comment, ContactMessage, NewsletterSubscriber, AccessibilitySettings } from '../types';
 
-// הגדרת כתובת השרת - ב-Railway זה בדרך כלל נתיב יחסי
 const API_URL = '/api';
 
 export interface AppState {
@@ -50,19 +49,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [posts, setPosts] = useState<Post[]>([]);
   const [ads, setAds] = useState<Ad[]>([]);
+  const [registeredUsers, setRegisteredUsers] = useState<User[]>([]);
+  const [contactMessages, setContactMessages] = useState<ContactMessage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [accessibility, setAccessibility] = useState<AccessibilitySettings>({
     fontSize: 16, highContrast: false, readableFont: false, grayscale: false,
   });
 
-  // טעינת נתונים ראשונית מהשרת (כדי שהמידע לא ייעלם בריענון)
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const postsRes = await axios.get(`${API_URL}/posts`);
-        setPosts(postsRes.data);
-        const adsRes = await axios.get(`${API_URL}/ads`);
-        setAds(adsRes.data);
+        const [p, a, u, m] = await Promise.all([
+          axios.get(`${API_URL}/posts`),
+          axios.get(`${API_URL}/ads`),
+          axios.get(`${API_URL}/users`),
+          axios.get(`${API_URL}/contact`)
+        ]);
+        setPosts(p.data);
+        setAds(a.data);
+        setRegisteredUsers(u.data);
+        setContactMessages(m.data);
       } catch (err) {
         console.error("Error fetching data:", err);
       } finally {
@@ -72,10 +78,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     fetchData();
   }, []);
 
-  // --- התחברות אמיתית ---
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
-      // כאן אנחנו שולחים בקשה אמיתית לשרת ב-Railway
       const res = await axios.post(`${API_URL}/login`, { email, password });
       if (res.data.user) {
         localStorage.setItem('safed_news_user', JSON.stringify(res.data.user));
@@ -83,9 +87,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return true;
       }
       return false;
-    } catch (err) {
-      return false;
-    }
+    } catch (err) { return false; }
   };
 
   const register = async (userData: any): Promise<boolean> => {
@@ -105,39 +107,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setUser(null);
   };
 
-  // --- שמירת תוכן אמיתית במסד הנתונים ---
   const addPost = async (postData: any) => {
-    try {
-      const res = await axios.post(`${API_URL}/posts`, postData);
-      setPosts(prev => [res.data, ...prev]); // עדכון ה-State עם מה שחזר מהמנגו
-    } catch (err) { console.error(err); }
+    const res = await axios.post(`${API_URL}/posts`, postData);
+    setPosts(prev => [res.data, ...prev]);
   };
 
-  const addContactMessage = async (msg: ContactMessage) => {
-    await axios.post(`${API_URL}/contact`, msg);
+  const deletePost = async (id: string) => {
+    await axios.delete(`${API_URL}/posts/${id}`);
+    setPosts(prev => prev.filter(p => p.id !== id));
   };
 
-  // פונקציות עזר לנגישות
+  const addContactMessage = async (msg: any) => {
+    const res = await axios.post(`${API_URL}/contact`, msg);
+    setContactMessages(prev => [res.data, ...prev]);
+  };
+
   const toggleAccessibilityOption = (option: keyof AccessibilitySettings) => {
     if (option !== 'fontSize') setAccessibility(prev => ({ ...prev, [option]: !prev[option] }));
   };
   const setFontSize = (size: number) => setAccessibility(prev => ({ ...prev, fontSize: size }));
   const resetAccessibility = () => setAccessibility({ fontSize: 16, highContrast: false, readableFont: false, grayscale: false });
 
-  // פונקציות ריקות להשלמה
-  const deletePost = async (id: string) => { await axios.delete(`${API_URL}/posts/${id}`); setPosts(prev => prev.filter(p => p.id !== id)); };
+  // פונקציות להשלמה (תוכל לחבר ל-API בהמשך)
   const incrementViews = (id: string) => {};
-  const updateAd = async () => {};
-  const createAd = async () => {};
-  const deleteAd = async () => {};
-  const addComment = async () => {};
-  const toggleLikeComment = async () => {};
-  const subscribeToNewsletter = async () => true;
+  const updateAd = async (id: string, updates: any) => {};
+  const createAd = async (ad: any) => {};
+  const deleteAd = async (id: string) => {};
+  const addComment = async (comment: any) => {};
+  const toggleLikeComment = async (id: string) => {};
+  const subscribeToNewsletter = async (email: string) => true;
   const sendNewsletter = async () => {};
 
   return (
     <AppContext.Provider value={{
-      posts, ads, user, comments: [], registeredUsers: [], contactMessages: [], 
+      posts, ads, user, comments: [], registeredUsers, contactMessages, 
       newsletterSubscribers: [], accessibility, isLoading,
       addPost, deletePost, incrementViews, updateAd, createAd, deleteAd,
       login, logout, register, addComment, toggleLikeComment,
