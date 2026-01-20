@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { useNavigate, Link } from 'react-router-dom';
@@ -29,6 +28,7 @@ export const Login: React.FC = () => {
     }
   };
 
+  // בדיקה אם המשתמש כבר מחובר - ניתוב מחדש
   if (user) {
     if (user.role === 'admin') navigate('/admin');
     else navigate('/');
