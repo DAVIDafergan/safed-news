@@ -10,48 +10,47 @@ require('dotenv').config();
 
 const app = express();
 
-// --- תיקון קריטי עבור Railway ושירותי ענן ---
-// מאפשר ל-rate-limit לזהות את ה-IP האמיתי של הגולש דרך ה-Proxy של Railway
-app.set('trust proxy', 1);
+// --- הגדרות ליבה ופרוקסי (חיוני ל-Railway) ---
+app.set('trust proxy', 1); // מאפשר זיהוי IP אמיתי מאחורי ה-Proxy של Railway
 
-// --- הגדרות אבטחה ו-Middleware ---
-
-// הגדרת Helmet מותאמת אישית - פותר את שגיאות ה-CSP (המסך הלבן)
+// --- הגדרות אבטחה (Helmet) ---
+// פותר את בעיית ה-CSP והמסך הלבן תוך שמירה על הגנה
 app.use(helmet({
     contentSecurityPolicy: {
         directives: {
             ...helmet.contentSecurityPolicy.getDefaultDirectives(),
-            "script-src": ["'self'", "'unsafe-inline'", "https://cdn.tailwindcss.com"], // מאפשר Tailwind CDN וסקריפטים פנימיים של React
+            "script-src": ["'self'", "'unsafe-inline'", "https://cdn.tailwindcss.com"],
             "style-src": ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-            "img-src": ["'self'", "data:", "https:", "http:"], // מאפשר טעינת תמונות מכל מקור בטוח
+            "img-src": ["'self'", "data:", "https:", "http:"],
+            "connect-src": ["'self'", "https://safed-news-production.up.railway.app", "https://*.railway.app"]
         },
     },
-    crossOriginEmbedderPolicy: false, // פותר בעיות טעינת תמונות חיצוניות ב-Chrome
+    crossOriginEmbedderPolicy: false,
 }));
 
 app.use(cors());
 app.use(express.json());
 
-// הגבלת בקשות (Rate Limiting) כדי למנוע ספאם והתקפות DDOS
+// --- הגבלת בקשות (Rate Limiting) ---
 const limiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 דקות
-    max: 100, // מקסימום 100 בקשות לכל כתובת IP
-    message: { msg: 'יותר מדי בקשות מה-IP הזה, נא לנסות שוב מאוחר יותר' }
+    max: 200, // הגדלתי ל-200 כדי למנוע חסימות שווא בטעינת אתר עמוס
+    message: { msg: 'יותר מדי בקשות, נא לנסות שוב בעוד כמה דקות' }
 });
 app.use('/api/', limiter);
 
 // --- 1. חיבור למסד הנתונים ---
 mongoose.connect(process.env.MONGO_URI)
-    .then(() => console.log('✅ מחובר ל-MongoDB - המערכת מוכנה לעבודה'))
+    .then(() => console.log('✅ מחובר למנגו אטלס - המערכת מוכנה'))
     .catch(err => {
-        console.error('❌ שגיאת חיבור ל-MongoDB:', err);
+        console.error('❌ שגיאת חיבור למנגו:', err);
         process.exit(1);
     });
 
 // --- Middleware לאימות מנהלים ---
 const authMiddleware = (req, res, next) => {
     const token = req.header('x-auth-token');
-    if (!token) return res.status(401).json({ msg: 'אין הרשאה, חסר טוקן' });
+    if (!token) return res.status(401).json({ msg: 'גישה נדחתה, חסר טוקן' });
 
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
@@ -69,14 +68,20 @@ const PostSchema = new mongoose.Schema({
     content: { type: String, required: true },
     category: { type: String, index: true },
     imageUrl: String,
+    imageCredit: String,
     excerpt: String,
     author: String,
     tags: [String],
     isFeatured: { type: Boolean, default: false },
     views: { type: Number, default: 0 },
     likes: { type: Number, default: 0 },
-    date: { type: Date, default: Date.now, index: true }
+    shortLinkCode: String,
+    date: { type: String, default: () => new Date().toLocaleDateString('he-IL') }
 });
+
+// וירטואליזציה של ה-ID עבור ה-Frontend
+PostSchema.set('toJSON', { virtuals: true });
+
 const Post = mongoose.model('Post', PostSchema);
 
 const UserSchema = new mongoose.Schema({
@@ -84,7 +89,7 @@ const UserSchema = new mongoose.Schema({
     password: { type: String, required: true },
     name: String,
     role: { type: String, default: 'user', enum: ['user', 'admin', 'editor'] },
-    joinedDate: { type: Date, default: Date.now }
+    joinedDate: { type: String, default: () => new Date().toLocaleDateString('he-IL') }
 });
 const User = mongoose.model('User', UserSchema);
 
@@ -94,13 +99,15 @@ const Ad = mongoose.model('Ad', new mongoose.Schema({
 }));
 
 const Alert = mongoose.model('Alert', new mongoose.Schema({
-    content: String, active: { type: Boolean, default: true },
-    title: String, date: { type: Date, default: Date.now }
+    content: { type: String, required: true },
+    active: { type: Boolean, default: true },
+    title: String, 
+    date: { type: String, default: () => new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }) }
 }));
 
 const ContactMessage = mongoose.model('ContactMessage', new mongoose.Schema({
     name: String, email: String, phone: String, subject: String, message: String,
-    date: { type: Date, default: Date.now },
+    date: { type: String, default: () => new Date().toLocaleString('he-IL') },
     read: { type: Boolean, default: false }
 }));
 
@@ -117,29 +124,25 @@ app.get('/api/posts', async (req, res) => {
         if (category) query.category = category;
 
         const posts = await Post.find(query)
-            .sort({ date: -1 })
+            .sort({ _id: -1 })
             .skip((page - 1) * limit)
             .limit(limit);
 
         const total = await Post.countDocuments(query);
-
-        res.json({
-            posts,
-            totalPages: Math.ceil(total / limit),
-            currentPage: page
-        });
+        res.json({ posts, totalPages: Math.ceil(total / limit), currentPage: page });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
 
+// כתבה בודדת + עדכון צפיות
 app.get('/api/posts/:id', async (req, res) => {
     try {
         const post = await Post.findByIdAndUpdate(req.params.id, { $inc: { views: 1 } }, { new: true });
         if (!post) return res.status(404).json({ msg: 'הכתבה לא נמצאה' });
         res.json(post);
     } catch (err) {
-        res.status(404).json({ error: "Post not found" });
+        res.status(404).json({ error: "Invalid ID format" });
     }
 });
 
@@ -162,7 +165,8 @@ app.delete('/api/posts/:id', authMiddleware, async (req, res) => {
     }
 });
 
-app.get('/api/alerts', async (req, res) => res.json(await Alert.find({ active: true }).sort({ date: -1 })));
+// מבזקים
+app.get('/api/alerts', async (req, res) => res.json(await Alert.find({ active: true }).sort({ _id: -1 })));
 app.post('/api/alerts', authMiddleware, async (req, res) => res.json(await new Alert(req.body).save()));
 app.delete('/api/alerts/:id', authMiddleware, async (req, res) => {
     await Alert.findByIdAndDelete(req.params.id);
@@ -174,7 +178,7 @@ app.post('/api/register', async (req, res) => {
     const { email, password, name } = req.body;
     try {
         let user = await User.findOne({ email });
-        if (user) return res.status(400).json({ msg: 'משתמש כבר קיים' });
+        if (user) return res.status(400).json({ msg: 'המשתמש כבר קיים' });
 
         user = new User({ email, password, name });
         const salt = await bcrypt.genSalt(10);
@@ -187,7 +191,7 @@ app.post('/api/register', async (req, res) => {
             res.json({ token, user: { id: user.id, name: user.name, role: user.role } });
         });
     } catch (err) {
-        res.status(500).send('שגיאת שרת');
+        res.status(500).send('שגיאת שרת ברישום');
     }
 });
 
@@ -206,7 +210,7 @@ app.post('/api/login', async (req, res) => {
             res.json({ token, user: { id: user.id, name: user.name, role: user.role } });
         });
     } catch (err) {
-        res.status(500).send('שגיאת שרת');
+        res.status(500).send('שגיאת שרת בהתחברות');
     }
 });
 
@@ -214,25 +218,32 @@ app.get('/api/users', authMiddleware, async (req, res) => {
     res.json(await User.find().select('-password'));
 });
 
+// פרסומות וצור קשר
 app.get('/api/ads', async (req, res) => res.json(await Ad.find({ isActive: true })));
 app.post('/api/ads', authMiddleware, async (req, res) => res.json(await new Ad(req.body).save()));
+app.get('/api/contact', authMiddleware, async (req, res) => res.json(await ContactMessage.find().sort({ _id: -1 })));
 app.post('/api/contact', async (req, res) => res.json(await new ContactMessage(req.body).save()));
 
 // --- 4. הגשת האתר (Frontend) ---
 
-const distPath = path.join(__dirname, 'client', 'dist');
-
-// חשוב: הגשת קבצים סטטיים חייבת להיות לפני הניתוב הכללי (*)
+const distPath = path.resolve(__dirname, 'client', 'dist');
 app.use(express.static(distPath));
 
-// פתרון שגיאת ה-MIME Type: מבטיח שאם קובץ לא נמצא, לא יוחזר דף HTML בטעות
+// פתרון שגיאת ה-MIME Type ומסך לבן בריענון
 app.get('*', (req, res) => {
-    if (req.path.includes('.') && !req.path.startsWith('/api')) {
-        return res.status(404).send('Not found');
+    // מניעת מצב שבו דפדפן מחפש קובץ API או קובץ חסר ומקבל HTML
+    if (req.path.startsWith('/api')) {
+        return res.status(404).json({ error: 'API route not found' });
+    }
+    // אם הבקשה היא לקובץ (מכיל נקודה) והוא לא נמצא ב-static, זו שגיאת 404 אמיתית
+    if (req.path.includes('.')) {
+        return res.status(404).send('Resource not found');
     }
     res.sendFile(path.join(distPath, 'index.html'));
 });
 
-// שימוש בכתובת 0.0.0.0 הכרחי בסביבות Railway להאזנה נכונה לבקשות
+// האזנה לפורט בכתובת 0.0.0.0 (חובה ל-Railway)
 const PORT = process.env.PORT || 8080;
-app.listen(PORT, "0.0.0.0", () => console.log(`🚀 שרת "צפת בתנופה" רץ בפורט ${PORT}`));
+app.listen(PORT, "0.0.0.0", () => {
+    console.log(`🚀 שרת "צפת בתנופה" באוויר בפורט ${PORT}`);
+});

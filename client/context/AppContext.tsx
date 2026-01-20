@@ -56,61 +56,72 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     fontSize: 16, highContrast: false, readableFont: false, grayscale: false,
   });
 
-useEffect(() => {
-  const fetchData = async () => {
-    try {
-      // טעינת פוסטים ופרסומות - נתיבים ציבוריים
-      const [p, a] = await Promise.all([
-        axios.get(`${API_URL}/posts`),
-        axios.get(`${API_URL}/ads`)
-      ]);
-      setPosts(p.data.posts || p.data);
-      setAds(a.data);
-
-      // משיכת משתמשים והודעות רק אם המשתמש מחובר (יש טוקן)
-      const token = localStorage.getItem('token'); // או השם שבו אתה שומר את הטוקן
-      if (token) {
-        const config = { headers: { 'x-auth-token': token } };
-        const [u, m] = await Promise.all([
-          axios.get(`${API_URL}/users`, config),
-          axios.get(`${API_URL}/contact`, config)
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        // טעינת נתונים ציבוריים בלבד בטעינה ראשונה - מונע שגיאות 401 לקבלת מסך לבן
+        const [postsRes, adsRes] = await Promise.all([
+          axios.get(`${API_URL}/posts`).catch(() => ({ data: [] })),
+          axios.get(`${API_URL}/ads`).catch(() => ({ data: [] }))
         ]);
-        setRegisteredUsers(u.data);
-        setContactMessages(m.data);
+        
+        // וידוא שהנתונים הם מערכים לפני העדכון (תמיכה במבנה אובייקט של פוסטים)
+        const pData = postsRes.data;
+        setPosts(Array.isArray(pData) ? pData : (pData.posts || []));
+        setAds(Array.isArray(adsRes.data) ? adsRes.data : []);
+
+        // משיכת נתונים מוגנים (משתמשים והודעות) רק אם יש טוקן שמור
+        // שים לב: אנחנו מחפשים טוקן ב-localStorage או בתוך אובייקט המשתמש השמור
+        const savedUserData = localStorage.getItem('safed_news_user');
+        const token = savedUserData ? JSON.parse(savedUserData).token : null;
+
+        if (token) {
+          const config = { headers: { 'x-auth-token': token } };
+          const [uRes, mRes] = await Promise.all([
+            axios.get(`${API_URL}/users`, config).catch(() => ({ data: [] })),
+            axios.get(`${API_URL}/contact`, config).catch(() => ({ data: [] }))
+          ]);
+          setRegisteredUsers(uRes.data);
+          setContactMessages(mRes.data);
+        }
+      } catch (err) {
+        console.error("Critical error in fetchData:", err);
+      } finally {
+        setIsLoading(false);
       }
-    } catch (err) {
-      console.error("Error fetching data:", err);
-      // לא זורקים שגיאה קריטית כאן כדי שהאתר ימשיך להיטען עבור אורחים
-    } finally {
-      setIsLoading(false);
-    }
-  };
-  fetchData();
-  
-}, []);
+    };
+    fetchData();
+  }, []);
 
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
       const res = await axios.post(`${API_URL}/login`, { email, password });
-      if (res.data.user) {
-        localStorage.setItem('safed_news_user', JSON.stringify(res.data.user));
-        setUser(res.data.user);
+      if (res.data.user || res.data.token) {
+        // שומרים את כל אובייקט התגובה הכולל את הטוקן והמשתמש
+        const userData = { ...res.data.user, token: res.data.token };
+        localStorage.setItem('safed_news_user', JSON.stringify(userData));
+        setUser(userData);
         return true;
       }
       return false;
-    } catch (err) { return false; }
+    } catch (err) { 
+      return false; 
+    }
   };
 
   const register = async (userData: any): Promise<boolean> => {
     try {
       const res = await axios.post(`${API_URL}/register`, userData);
-      if (res.data.user) {
-        localStorage.setItem('safed_news_user', JSON.stringify(res.data.user));
-        setUser(res.data.user);
+      if (res.data.user || res.data.token) {
+        const fullUserData = { ...res.data.user, token: res.data.token };
+        localStorage.setItem('safed_news_user', JSON.stringify(fullUserData));
+        setUser(fullUserData);
         return true;
       }
       return false;
-    } catch (err) { return false; }
+    } catch (err) { 
+      return false; 
+    }
   };
 
   const logout = () => {
@@ -119,34 +130,57 @@ useEffect(() => {
   };
 
   const addPost = async (postData: any) => {
-    const res = await axios.post(`${API_URL}/posts`, postData);
-    setPosts(prev => [res.data, ...prev]);
+    try {
+      const res = await axios.post(`${API_URL}/posts`, postData);
+      setPosts(prev => [res.data, ...prev]);
+    } catch (err) {
+      console.error("Failed to add post:", err);
+    }
   };
 
   const deletePost = async (id: string) => {
-    await axios.delete(`${API_URL}/posts/${id}`);
-    setPosts(prev => prev.filter(p => p.id !== id));
+    try {
+      await axios.delete(`${API_URL}/posts/${id}`);
+      setPosts(prev => prev.filter(p => (p as any).id !== id && (p as any)._id !== id));
+    } catch (err) {
+      console.error("Failed to delete post:", err);
+    }
   };
 
   const addContactMessage = async (msg: any) => {
-    const res = await axios.post(`${API_URL}/contact`, msg);
-    setContactMessages(prev => [res.data, ...prev]);
+    try {
+      const res = await axios.post(`${API_URL}/contact`, msg);
+      setContactMessages(prev => [res.data, ...prev]);
+    } catch (err) {
+      console.error("Failed to send message:", err);
+    }
   };
 
   const toggleAccessibilityOption = (option: keyof AccessibilitySettings) => {
     if (option !== 'fontSize') setAccessibility(prev => ({ ...prev, [option]: !prev[option] }));
   };
+
   const setFontSize = (size: number) => setAccessibility(prev => ({ ...prev, fontSize: size }));
+
   const resetAccessibility = () => setAccessibility({ fontSize: 16, highContrast: false, readableFont: false, grayscale: false });
 
-  const incrementViews = (id: string) => {};
-  const updateAd = async (id: string, updates: any) => {};
-  const createAd = async (ad: any) => {};
-  const deleteAd = async (id: string) => {};
-  const addComment = async (comment: any) => {};
-  const toggleLikeComment = async (id: string) => {};
-  const subscribeToNewsletter = async (email: string) => true;
-  const sendNewsletter = async () => {};
+  // פונקציות להשלמה עתידית (Stubs) - נשמרות כדי לא לשבור את הטיפוסים
+  const incrementViews = (id: string) => {
+    axios.get(`${API_URL}/posts/${id}`).catch(() => {});
+  };
+
+  const updateAd = async (id: string, updates: any) => { console.log("Update Ad", id, updates); };
+  const createAd = async (ad: any) => { console.log("Create Ad", ad); };
+  const deleteAd = async (id: string) => { console.log("Delete Ad", id); };
+  const addComment = async (comment: any) => { console.log("Add Comment", comment); };
+  const toggleLikeComment = async (id: string) => { console.log("Like Comment", id); };
+  const subscribeToNewsletter = async (email: string) => { 
+    console.log("Newsletter Subscribe", email);
+    return true; 
+  };
+  const sendNewsletter = async (subject: string, content: string) => { 
+    console.log("Send Newsletter", subject, content); 
+  };
 
   return (
     <AppContext.Provider value={{
