@@ -9,7 +9,7 @@ const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
 const app = express();
-
+app.set('trust proxy', 1);
 // --- הגדרות אבטחה ו-Middleware ---
 
 // הגדרת Helmet מותאמת אישית - פותר את שגיאות ה-CSP (המסך הלבן)
