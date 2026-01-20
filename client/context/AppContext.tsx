@@ -42,8 +42,6 @@ export const useApp = () => {
   return context;
 };
 
-
-
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(() => {
     const saved = localStorage.getItem('safed_news_user');
