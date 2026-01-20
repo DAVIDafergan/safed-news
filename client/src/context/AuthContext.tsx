@@ -1,12 +1,10 @@
---- START OF FILE client/src/context/AuthContext.tsx ---
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { User } from '../../../types'; // וודא שהנתיב נכון
-import { AuthService } from '../services/api';
+import { User } from '../types'; // וודא שהנתיב תואם לתיקיית ה-types שלך
+import { api } from '../services/api';
 
 interface AuthContextType {
   user: User | null;
-  login: (credentials: any) => Promise<void>;
+  login: (email: string, pass: string) => Promise<void>;
   logout: () => void;
   isLoading: boolean;
 }
@@ -17,46 +15,61 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // בודק בטעינת האתר אם יש משתמש שמור
+  // בדיקה בטעינת האתר - סנכרון מול ה-LocalStorage המאוחד
   useEffect(() => {
     const checkLoggedIn = () => {
-      const storedToken = localStorage.getItem('token');
-      const storedUser = localStorage.getItem('user');
-
-      if (storedToken && storedUser) {
-        try {
-          // שחזור המשתמש מהזיכרון המקומי
-          setUser(JSON.parse(storedUser));
-        } catch (error) {
-          console.error("Failed to parse user data", error);
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
+      try {
+        const storedData = localStorage.getItem('safed_news_user');
+        if (storedData) {
+          const parsedData = JSON.parse(storedData);
+          // אם יש משתמש וטוקן, אנחנו מחשיבים אותו כמחובר
+          if (parsedData && parsedData.token) {
+            setUser(parsedData);
+          }
         }
+      } catch (error) {
+        console.error("Failed to parse user data from storage", error);
+        localStorage.removeItem('safed_news_user');
+      } finally {
+        setIsLoading(false); // מבטיח שהאפליקציה תצא ממצב טעינה ולא תיתקע על מסך לבן
       }
-      setIsLoading(false);
     };
 
     checkLoggedIn();
   }, []);
 
-  const login = async (credentials: any) => {
+  const login = async (email: string, pass: string) => {
     try {
-      const data = await AuthService.login(credentials);
-      setUser(data.user);
-      // ה-AuthService כבר שומר ב-localStorage, אז אין צורך כאן
+      const data = await api.login(email, pass);
+      if (data && data.token) {
+        // איחוד הנתונים לאובייקט אחד ושמירה ב-LocalStorage
+        const userData = { ...data.user, token: data.token };
+        localStorage.setItem('safed_news_user', JSON.stringify(userData));
+        setUser(userData);
+      } else {
+        throw new Error("פרטי התחברות שגויים");
+      }
     } catch (error) {
+      console.error("Login error", error);
       throw error;
     }
   };
 
   const logout = () => {
-    AuthService.logout();
+    localStorage.removeItem('safed_news_user');
     setUser(null);
+    // אופציונלי: ריענון דף כדי לנקות את כל ה-State של האפליקציה
+    window.location.href = '/login';
   };
 
   return (
     <AuthContext.Provider value={{ user, login, logout, isLoading }}>
-      {children}
+      {/* אם המערכת בטעינה ראשונית, נציג מסך טעינה נקי ולא מסך לבן */}
+      {!isLoading ? children : (
+        <div className="min-h-screen flex items-center justify-center bg-white">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-red-700"></div>
+        </div>
+      )}
     </AuthContext.Provider>
   );
 };

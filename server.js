@@ -11,10 +11,9 @@ require('dotenv').config();
 const app = express();
 
 // --- הגדרות ליבה ופרוקסי (חיוני ל-Railway) ---
-app.set('trust proxy', 1); // מאפשר זיהוי IP אמיתי מאחורי ה-Proxy של Railway
+app.set('trust proxy', 1);
 
 // --- הגדרות אבטחה (Helmet) ---
-// פותר את בעיית ה-CSP והמסך הלבן תוך שמירה על הגנה
 app.use(helmet({
     contentSecurityPolicy: {
         directives: {
@@ -31,10 +30,9 @@ app.use(helmet({
 app.use(cors());
 app.use(express.json());
 
-// --- הגבלת בקשות (Rate Limiting) ---
 const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 דקות
-    max: 200, // הגדלתי ל-200 כדי למנוע חסימות שווא בטעינת אתר עמוס
+    windowMs: 15 * 60 * 1000, 
+    max: 200, 
     message: { msg: 'יותר מדי בקשות, נא לנסות שוב בעוד כמה דקות' }
 });
 app.use('/api/', limiter);
@@ -78,10 +76,7 @@ const PostSchema = new mongoose.Schema({
     shortLinkCode: String,
     date: { type: String, default: () => new Date().toLocaleDateString('he-IL') }
 });
-
-// וירטואליזציה של ה-ID עבור ה-Frontend
 PostSchema.set('toJSON', { virtuals: true });
-
 const Post = mongoose.model('Post', PostSchema);
 
 const UserSchema = new mongoose.Schema({
@@ -113,37 +108,26 @@ const ContactMessage = mongoose.model('ContactMessage', new mongoose.Schema({
 
 // --- 3. נתיבי API ---
 
-// כתבות עם Pagination
 app.get('/api/posts', async (req, res) => {
     try {
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 10;
         const category = req.query.category;
-
         let query = {};
         if (category) query.category = category;
 
-        const posts = await Post.find(query)
-            .sort({ _id: -1 })
-            .skip((page - 1) * limit)
-            .limit(limit);
-
+        const posts = await Post.find(query).sort({ _id: -1 }).skip((page - 1) * limit).limit(limit);
         const total = await Post.countDocuments(query);
         res.json({ posts, totalPages: Math.ceil(total / limit), currentPage: page });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
+    } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// כתבה בודדת + עדכון צפיות
 app.get('/api/posts/:id', async (req, res) => {
     try {
         const post = await Post.findByIdAndUpdate(req.params.id, { $inc: { views: 1 } }, { new: true });
         if (!post) return res.status(404).json({ msg: 'הכתבה לא נמצאה' });
         res.json(post);
-    } catch (err) {
-        res.status(404).json({ error: "Invalid ID format" });
-    }
+    } catch (err) { res.status(404).json({ error: "Invalid ID format" }); }
 });
 
 app.post('/api/posts', authMiddleware, async (req, res) => {
@@ -151,21 +135,16 @@ app.post('/api/posts', authMiddleware, async (req, res) => {
         const newPost = new Post(req.body);
         await newPost.save();
         res.json(newPost);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
+    } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.delete('/api/posts/:id', authMiddleware, async (req, res) => {
     try {
         await Post.findByIdAndDelete(req.params.id);
         res.json({ success: true });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
+    } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// מבזקים
 app.get('/api/alerts', async (req, res) => res.json(await Alert.find({ active: true }).sort({ _id: -1 })));
 app.post('/api/alerts', authMiddleware, async (req, res) => res.json(await new Alert(req.body).save()));
 app.delete('/api/alerts/:id', authMiddleware, async (req, res) => {
@@ -173,26 +152,21 @@ app.delete('/api/alerts/:id', authMiddleware, async (req, res) => {
     res.json({ success: true });
 });
 
-// אימות משתמשים (Auth)
 app.post('/api/register', async (req, res) => {
     const { email, password, name } = req.body;
     try {
         let user = await User.findOne({ email });
         if (user) return res.status(400).json({ msg: 'המשתמש כבר קיים' });
-
         user = new User({ email, password, name });
         const salt = await bcrypt.genSalt(10);
         user.password = await bcrypt.hash(password, salt);
         await user.save();
-
         const payload = { user: { id: user.id, role: user.role } };
         jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' }, (err, token) => {
             if (err) throw err;
             res.json({ token, user: { id: user.id, name: user.name, role: user.role } });
         });
-    } catch (err) {
-        res.status(500).send('שגיאת שרת ברישום');
-    }
+    } catch (err) { res.status(500).send('שגיאת שרת ברישום'); }
 });
 
 app.post('/api/login', async (req, res) => {
@@ -200,50 +174,31 @@ app.post('/api/login', async (req, res) => {
     try {
         let user = await User.findOne({ email });
         if (!user) return res.status(400).json({ msg: 'פרטים שגויים' });
-
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) return res.status(400).json({ msg: 'פרטים שגויים' });
-
         const payload = { user: { id: user.id, role: user.role } };
         jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' }, (err, token) => {
             if (err) throw err;
             res.json({ token, user: { id: user.id, name: user.name, role: user.role } });
         });
-    } catch (err) {
-        res.status(500).send('שגיאת שרת בהתחברות');
-    }
+    } catch (err) { res.status(500).send('שגיאת שרת בהתחברות'); }
 });
 
-app.get('/api/users', authMiddleware, async (req, res) => {
-    res.json(await User.find().select('-password'));
-});
-
-// פרסומות וצור קשר
+app.get('/api/users', authMiddleware, async (req, res) => { res.json(await User.find().select('-password')); });
 app.get('/api/ads', async (req, res) => res.json(await Ad.find({ isActive: true })));
 app.post('/api/ads', authMiddleware, async (req, res) => res.json(await new Ad(req.body).save()));
 app.get('/api/contact', authMiddleware, async (req, res) => res.json(await ContactMessage.find().sort({ _id: -1 })));
 app.post('/api/contact', async (req, res) => res.json(await new ContactMessage(req.body).save()));
 
 // --- 4. הגשת האתר (Frontend) ---
-
 const distPath = path.resolve(__dirname, 'client', 'dist');
 app.use(express.static(distPath));
 
-// פתרון שגיאת ה-MIME Type ומסך לבן בריענון
 app.get('*', (req, res) => {
-    // מניעת מצב שבו דפדפן מחפש קובץ API או קובץ חסר ומקבל HTML
-    if (req.path.startsWith('/api')) {
-        return res.status(404).json({ error: 'API route not found' });
-    }
-    // אם הבקשה היא לקובץ (מכיל נקודה) והוא לא נמצא ב-static, זו שגיאת 404 אמיתית
-    if (req.path.includes('.')) {
-        return res.status(404).send('Resource not found');
-    }
+    if (req.path.startsWith('/api')) { return res.status(404).json({ error: 'API route not found' }); }
+    if (req.path.includes('.')) { return res.status(404).send('Resource not found'); }
     res.sendFile(path.join(distPath, 'index.html'));
 });
 
-// האזנה לפורט בכתובת 0.0.0.0 (חובה ל-Railway)
 const PORT = process.env.PORT || 8080;
-app.listen(PORT, "0.0.0.0", () => {
-    console.log(`🚀 שרת "צפת בתנופה" באוויר בפורט ${PORT}`);
-});
+app.listen(PORT, "0.0.0.0", () => { console.log(`🚀 שרת "צפת בתנופה" באוויר בפורט ${PORT}`); });

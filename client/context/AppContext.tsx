@@ -53,7 +53,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // 1. טעינת נתונים ציבוריים (לא דורש טוקן)
+        // 1. טעינת נתונים ציבוריים (לא דורש טוקן) - שימוש ב-allSettled למניעת קריסה
         const [pRes, aRes] = await Promise.allSettled([
           axios.get(`${API_URL}/posts`),
           axios.get(`${API_URL}/ads`)
@@ -65,7 +65,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
         if (aRes.status === 'fulfilled') setAds(aRes.value.data);
 
-        // 2. טעינת נתונים מוגנים - רק אם יש משתמש מחובר וטוקן
+        // 2. טעינת נתונים מוגנים - רק אם יש משתמש מחובר וטוקן תקף
         if (user && (user as any).token) {
           const config = { headers: { 'x-auth-token': (user as any).token } };
           const [uRes, mRes] = await Promise.allSettled([
@@ -79,7 +79,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } catch (err) {
         console.error("Data fetch error:", err);
       } finally {
-        setIsLoading(false); // מבטיח שהטעינה תסתיים תמיד
+        setIsLoading(false); // מבטיח שהטעינה תסתיים תמיד והמסך הלבן ייעלם
       }
     };
     fetchData();
@@ -117,7 +117,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setPosts(prev => prev.filter(p => (p as any)._id !== id && (p as any).id !== id));
   };
 
-  // פונקציות ריקות (Stubs) למניעת שגיאות טיפוסים
   const addContactMessage = async (msg) => { await axios.post(`${API_URL}/contact`, msg); };
   const toggleAccessibilityOption = (opt) => setAccessibility(prev => ({ ...prev, [opt]: !prev[opt] }));
   const setFontSize = (s) => setAccessibility(prev => ({ ...prev, fontSize: s }));

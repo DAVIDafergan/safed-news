@@ -7,7 +7,8 @@ const API_URL = '/api';
 const getAuthHeader = () => {
   const savedUser = localStorage.getItem('safed_news_user');
   if (savedUser) {
-    const { token } = JSON.parse(savedUser);
+    const parsed = JSON.parse(savedUser);
+    const token = parsed.token;
     return token ? { 'x-auth-token': token, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
   }
   return { 'Content-Type': 'application/json' };
@@ -24,7 +25,7 @@ export const api = {
 
       return { 
         posts: Array.isArray(postsRes) ? postsRes : (postsRes.posts || []), 
-        ads: adsRes, 
+        ads: Array.isArray(adsRes) ? adsRes : [], 
         comments: [], 
         registeredUsers: [],
         contactMessages: [],
@@ -57,7 +58,6 @@ export const api = {
   },
 
   incrementViews: async (id: string) => {
-    // שליחה שקטה של עדכון צפייה
     fetch(`${API_URL}/posts/${id}`).catch(() => {});
   },
 
@@ -87,9 +87,8 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password: pass })
     });
-    
     if (!response.ok) return null;
-    return response.json(); // מחזיר { token, user }
+    return response.json();
   },
 
   register: async (userData: any) => {
