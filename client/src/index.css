@@ -1,0 +1,70 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --font-scale: 1;
+  }
+  
+  html {
+    font-family: 'Rubik', sans-serif;
+    scroll-behavior: smooth;
+  }
+  
+  body {
+    background-color: #f8f9fa;
+    color: #1a1a1a;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+::-webkit-scrollbar-thumb {
+  background: #b91c1c;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #991b1b;
+}
+
+/* Accessibility High Contrast Overrides */
+.a11y-high-contrast {
+  background-color: #000 !important;
+  color: #fff !important;
+}
+.a11y-high-contrast * {
+  background-color: #000 !important;
+  color: #fff !important;
+  border-color: #fff !important;
+  box-shadow: none !important;
+}
+.a11y-high-contrast img, 
+.a11y-high-contrast video {
+  filter: contrast(150%);
+}
+/* Fix widget visibility in high contrast */
+.a11y-high-contrast .accessibility-widget-btn {
+  background-color: #ffff00 !important;
+  color: #000 !important;
+  border: 2px solid #fff !important;
+}
+
+/* Accessibility Link Highlights */
+.a11y-highlight-links a {
+  text-decoration: underline !important;
+  background-color: rgba(255, 255, 0, 0.2);
+}
+
+/* Stop Animations */
+.a11y-stop-animations *,
+.a11y-stop-animations *::before,
+.a11y-stop-animations *::after {
+  animation: none !important;
+  transition: none !important;
+}
