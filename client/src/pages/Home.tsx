@@ -1,26 +1,66 @@
-import React from 'react';
-import { useApp } from '../context/AppContext';
+import React, { useState, useEffect } from 'react';
+// import { useApp } from '../context/AppContext'; // נמחק - זה מקור הדמו
 import { HeroSlider } from '../components/HeroSlider';
 import { PostCard } from '../components/PostCard';
 import { AdUnit } from '../components/AdUnit';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, TrendingUp, Mail } from 'lucide-react';
-import { Category, CATEGORY_COLORS } from '../types';
+import { Category, CATEGORY_COLORS, Post, Ad } from '../types';
+import { PostService } from '../services/api';
+import api from '../services/api'; // לטעינת פרסומות
 
 export const Home: React.FC = () => {
-  const { posts, ads } = useApp();
+  // מצבים לשמירת הנתונים האמיתיים מהשרת
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [ads, setAds] = useState<Ad[]>([]);
+  const [loading, setLoading] = useState(true);
 
+  // שליפת נתונים בטעינת הדף
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        // טעינת כתבות (מביאים 100 כדי למלא את כל הקטגוריות בדף הבית)
+        // וטעינת פרסומות במקביל
+        const [postsData, adsResponse] = await Promise.all([
+          PostService.getAll(1, '', 100), // הנחה שהוספת פרמטר limit ל-api.ts, אחרת זה יביא ברירת מחדל
+          api.get('/ads')
+        ]);
+
+        // תמיכה במבנה תשובה שמחזיר אובייקט עם מערך posts או מערך ישיר
+        const realPosts = postsData.posts || postsData;
+        
+        setPosts(realPosts);
+        setAds(adsResponse.data);
+      } catch (error) {
+        console.error("Failed to load homepage data", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  // לוגיקה מקורית (נשמרה במדויק)
   const featuredPosts = posts.filter(p => p.isFeatured);
   const latestPosts = posts.slice(0, 6);
   
-  // Ad slots
+  // Ad slots Logic
   const leaderboardAd = ads.find(a => a.area === 'leaderboard' && a.isActive);
   const sidebarAd = ads.find(a => a.area === 'sidebar' && a.isActive);
   const sidebarVideoAd = ads.find(a => a.area === 'sidebar_video' && a.isActive);
   const midPageAd = ads.find(a => a.area === 'homepage_mid' && a.isActive);
 
-  // Get all categories except NEWS (since we show latest news at top)
+  // Get all categories except NEWS
   const categoriesToShow = Object.values(Category).filter(c => c !== Category.NEWS);
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-red-700"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="animate-fade-in pb-20">
@@ -57,7 +97,8 @@ export const Home: React.FC = () => {
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
                 {latestPosts.map(post => (
-                  <PostCard key={post.id} post={post} />
+                  // שינוי key ל-_id
+                  <PostCard key={post._id} post={post} />
                 ))}
               </div>
             </div>
@@ -92,7 +133,8 @@ export const Home: React.FC = () => {
                       
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         {catPosts.map(post => (
-                          <PostCard key={post.id} post={post} layout="list" />
+                          // שינוי key ל-_id
+                          <PostCard key={post._id} post={post} layout="list" />
                         ))}
                       </div>
                    </div>
@@ -121,8 +163,10 @@ export const Home: React.FC = () => {
                   .sort((a, b) => b.views - a.views)
                   .slice(0, 5)
                   .map((post, idx) => (
-                    <li key={post.id} className="py-4 first:pt-0 last:pb-0 group">
-                      <Link to={`/article/${post.id}`} className="flex gap-4 items-start">
+                    // שינוי key ל-_id
+                    <li key={post._id} className="py-4 first:pt-0 last:pb-0 group">
+                      {/* שינוי לינק ל-_id */}
+                      <Link to={`/article/${post._id}`} className="flex gap-4 items-start">
                          <span className={`text-3xl font-black ${idx < 3 ? 'text-red-700/20' : 'text-gray-100'} leading-none`}>0{idx + 1}</span>
                          <div>
                             <h4 className="text-sm font-bold text-gray-800 group-hover:text-red-700 transition-colors line-clamp-2 leading-snug mb-1">
