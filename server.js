@@ -9,7 +9,10 @@ const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
 const app = express();
+
+// --- תיקון קריטי עבור Railway ושירותי ענן ---
 app.set('trust proxy', 1);
+
 // --- הגדרות אבטחה ו-Middleware ---
 
 // הגדרת Helmet מותאמת אישית - פותר את שגיאות ה-CSP (המסך הלבן)
@@ -214,21 +217,21 @@ app.get('/api/ads', async (req, res) => res.json(await Ad.find({ isActive: true 
 app.post('/api/ads', authMiddleware, async (req, res) => res.json(await new Ad(req.body).save()));
 app.post('/api/contact', async (req, res) => res.json(await new ContactMessage(req.body).save()));
 
-// 4. הגשת האתר (Frontend)
+// --- 4. הגשת האתר (Frontend) ---
 
 // נתיב אבסולוטי לתיקיית ה-dist
 const distPath = path.join(__dirname, 'client', 'dist');
 
-// חשוב: הגשת קבצים סטטיים חייבת להיות לפני כל ניתוב אחר
+// הגשת קבצים סטטיים
 app.use(express.static(distPath));
-
-// ניתוב ה-API נשאר כפי שהוא...
 
 // פתרון שגיאת ה-MIME Type: כל בקשה שאינה API ואינה קובץ סטטי - תחזיר את ה-index.html
 app.get('*', (req, res) => {
-    // בדיקה אם הבקשה היא לקובץ (כמו .css או .js) שלא נמצא
     if (req.path.includes('.') && !req.path.startsWith('/api')) {
         return res.status(404).send('Not found');
     }
     res.sendFile(path.join(distPath, 'index.html'));
 });
+
+const PORT = process.env.PORT || 8080;
+app.listen(PORT, () => console.log(`🚀 שרת "צפת בתנופה" רץ בפורט ${PORT}`));
