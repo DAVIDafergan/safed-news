@@ -11,6 +11,7 @@ require('dotenv').config();
 const app = express();
 
 // --- תיקון קריטי עבור Railway ושירותי ענן ---
+// מאפשר ל-rate-limit לזהות את ה-IP האמיתי של הגולש דרך ה-Proxy של Railway
 app.set('trust proxy', 1);
 
 // --- הגדרות אבטחה ו-Middleware ---
@@ -20,21 +21,21 @@ app.use(helmet({
     contentSecurityPolicy: {
         directives: {
             ...helmet.contentSecurityPolicy.getDefaultDirectives(),
-            "script-src": ["'self'", "'unsafe-inline'", "https://cdn.tailwindcss.com"], // מאפשר Tailwind CDN וסקריפטים פנימיים
+            "script-src": ["'self'", "'unsafe-inline'", "https://cdn.tailwindcss.com"], // מאפשר Tailwind CDN וסקריפטים פנימיים של React
             "style-src": ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
             "img-src": ["'self'", "data:", "https:", "http:"], // מאפשר טעינת תמונות מכל מקור בטוח
         },
     },
-    crossOriginEmbedderPolicy: false, // פותר בעיות טעינת תמונות חיצוניות
+    crossOriginEmbedderPolicy: false, // פותר בעיות טעינת תמונות חיצוניות ב-Chrome
 }));
 
 app.use(cors());
 app.use(express.json());
 
-// הגבלת בקשות (Rate Limiting)
+// הגבלת בקשות (Rate Limiting) כדי למנוע ספאם והתקפות DDOS
 const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000, 
-    max: 100,
+    windowMs: 15 * 60 * 1000, // 15 דקות
+    max: 100, // מקסימום 100 בקשות לכל כתובת IP
     message: { msg: 'יותר מדי בקשות מה-IP הזה, נא לנסות שוב מאוחר יותר' }
 });
 app.use('/api/', limiter);
@@ -219,13 +220,12 @@ app.post('/api/contact', async (req, res) => res.json(await new ContactMessage(r
 
 // --- 4. הגשת האתר (Frontend) ---
 
-// נתיב אבסולוטי לתיקיית ה-dist
 const distPath = path.join(__dirname, 'client', 'dist');
 
-// הגשת קבצים סטטיים
+// חשוב: הגשת קבצים סטטיים חייבת להיות לפני הניתוב הכללי (*)
 app.use(express.static(distPath));
 
-// פתרון שגיאת ה-MIME Type: כל בקשה שאינה API ואינה קובץ סטטי - תחזיר את ה-index.html
+// פתרון שגיאת ה-MIME Type: מבטיח שאם קובץ לא נמצא, לא יוחזר דף HTML בטעות
 app.get('*', (req, res) => {
     if (req.path.includes('.') && !req.path.startsWith('/api')) {
         return res.status(404).send('Not found');
@@ -233,5 +233,6 @@ app.get('*', (req, res) => {
     res.sendFile(path.join(distPath, 'index.html'));
 });
 
+// שימוש בכתובת 0.0.0.0 הכרחי בסביבות Railway להאזנה נכונה לבקשות
 const PORT = process.env.PORT || 8080;
-app.listen(PORT, () => console.log(`🚀 שרת "צפת בתנופה" רץ בפורט ${PORT}`));
+app.listen(PORT, "0.0.0.0", () => console.log(`🚀 שרת "צפת בתנופה" רץ בפורט ${PORT}`));
