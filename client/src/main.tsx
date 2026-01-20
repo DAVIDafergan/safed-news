@@ -1,10 +1,16 @@
 // main.tsx
-import { AuthProvider } from './context/AuthContext.tsx' // וודא נתיב נכון
+import React from 'react'
+import ReactDOM from 'react-dom/client'
+import App from './App.tsx'
+import './index.css'
+import { AppProvider } from './context/AppContext.tsx'
+import { AuthProvider } from './context/AuthContext.tsx' // ייבוא ה-AuthProvider
+import { BrowserRouter } from 'react-router-dom'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <BrowserRouter>
-      <AuthProvider> {/* הוספה כאן */}
+      <AuthProvider> {/* עטיפת הכל ב-Auth */}
         <AppProvider>
           <App />
         </AppProvider>

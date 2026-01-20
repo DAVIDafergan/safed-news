@@ -15,15 +15,7 @@ app.set('trust proxy', 1); // מאפשר לזהות IP אמיתי מאחורי �
 
 // --- 2. אבטחה ו-Middleware ---
 app.use(helmet({
-    contentSecurityPolicy: {
-        directives: {
-            ...helmet.contentSecurityPolicy.getDefaultDirectives(),
-            "script-src": ["'self'", "'unsafe-inline'", "https://cdn.tailwindcss.com"],
-            "style-src": ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-            "img-src": ["'self'", "data:", "https:", "http:"],
-            "connect-src": ["'self'", "https://*.railway.app", "http://localhost:8080"]
-        },
-    },
+    contentSecurityPolicy: false, // פתרון לשגיאת ReactDOM is not defined - מאפשר טעינת סקריפטים של React
     crossOriginEmbedderPolicy: false,
 }));
 
