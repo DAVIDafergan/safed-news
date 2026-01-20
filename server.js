@@ -10,10 +10,10 @@ require('dotenv').config();
 
 const app = express();
 
-// --- הגדרות ליבה ופרוקסי (חיוני ל-Railway) ---
-app.set('trust proxy', 1);
+// --- 1. הגדרות ליבה (קריטי ל-Railway) ---
+app.set('trust proxy', 1); // מאפשר לזהות IP אמיתי מאחורי הפרוקסי
 
-// --- הגדרות אבטחה (Helmet) ---
+// --- 2. אבטחה ו-Middleware ---
 app.use(helmet({
     contentSecurityPolicy: {
         directives: {
@@ -21,7 +21,7 @@ app.use(helmet({
             "script-src": ["'self'", "'unsafe-inline'", "https://cdn.tailwindcss.com"],
             "style-src": ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
             "img-src": ["'self'", "data:", "https:", "http:"],
-            "connect-src": ["'self'", "https://safed-news-production.up.railway.app", "https://*.railway.app"]
+            "connect-src": ["'self'", "https://*.railway.app", "http://localhost:8080"]
         },
     },
     crossOriginEmbedderPolicy: false,
@@ -37,7 +37,7 @@ const limiter = rateLimit({
 });
 app.use('/api/', limiter);
 
-// --- 1. חיבור למסד הנתונים ---
+// --- 3. חיבור למסד הנתונים ---
 mongoose.connect(process.env.MONGO_URI)
     .then(() => console.log('✅ מחובר למנגו אטלס - המערכת מוכנה'))
     .catch(err => {
@@ -59,7 +59,7 @@ const authMiddleware = (req, res, next) => {
     }
 };
 
-// --- 2. תבניות נתונים (Models) ---
+// --- 4. תבניות נתונים (Models) ---
 
 const PostSchema = new mongoose.Schema({
     title: { type: String, required: true },
@@ -106,7 +106,7 @@ const ContactMessage = mongoose.model('ContactMessage', new mongoose.Schema({
     read: { type: Boolean, default: false }
 }));
 
-// --- 3. נתיבי API ---
+// --- 5. נתיבי API ---
 
 app.get('/api/posts', async (req, res) => {
     try {
@@ -190,15 +190,23 @@ app.post('/api/ads', authMiddleware, async (req, res) => res.json(await new Ad(r
 app.get('/api/contact', authMiddleware, async (req, res) => res.json(await ContactMessage.find().sort({ _id: -1 })));
 app.post('/api/contact', async (req, res) => res.json(await new ContactMessage(req.body).save()));
 
-// --- 4. הגשת האתר (Frontend) ---
+// --- 6. הגשת האתר (Frontend) ---
 const distPath = path.resolve(__dirname, 'client', 'dist');
 app.use(express.static(distPath));
 
+// פתרון למסך לבן: מפריד בין קריאות API לבין קריאות לקבצים חסרים
 app.get('*', (req, res) => {
-    if (req.path.startsWith('/api')) { return res.status(404).json({ error: 'API route not found' }); }
-    if (req.path.includes('.')) { return res.status(404).send('Resource not found'); }
+    if (req.path.startsWith('/api')) { 
+        return res.status(404).json({ error: 'API route not found' }); 
+    }
+    // אם הבקשה היא לקובץ (מכיל נקודה) והוא לא נמצא ב-static, זו שגיאה אמיתית
+    if (req.path.includes('.')) { 
+        return res.status(404).send('Resource not found'); 
+    }
     res.sendFile(path.join(distPath, 'index.html'));
 });
 
 const PORT = process.env.PORT || 8080;
-app.listen(PORT, "0.0.0.0", () => { console.log(`🚀 שרת "צפת בתנופה" באוויר בפורט ${PORT}`); });
+app.listen(PORT, "0.0.0.0", () => { 
+    console.log(`🚀 שרת "צפת בתנופה" באוויר בפורט ${PORT}`); 
+});
