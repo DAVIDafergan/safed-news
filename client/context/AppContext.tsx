@@ -1,5 +1,9 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import axios from 'axios';
 import { Post, Ad, User, Comment, ContactMessage, NewsletterSubscriber, AccessibilitySettings } from '../types';
+
+// הגדרת כתובת השרת - ב-Railway זה בדרך כלל נתיב יחסי
+const API_URL = '/api';
 
 export interface AppState {
   posts: Post[];
@@ -11,27 +15,20 @@ export interface AppState {
   newsletterSubscribers: NewsletterSubscriber[];
   accessibility: AccessibilitySettings;
   isLoading: boolean;
-  
-  // Async Actions
-  addPost: (post: Post) => Promise<void>;
+  addPost: (post: any) => Promise<void>;
   deletePost: (id: string) => Promise<void>;
   incrementViews: (id: string) => void;
   updateAd: (id: string, updates: Partial<Ad>) => Promise<void>;
   createAd: (ad: Ad) => Promise<void>;
   deleteAd: (id: string) => Promise<void>;
-  
-  login: (usernameOrEmail: string, password: string) => Promise<boolean>;
+  login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
-  register: (user: User) => Promise<boolean>;
-  
+  register: (userData: any) => Promise<boolean>;
   addComment: (comment: Comment) => Promise<void>;
   toggleLikeComment: (commentId: string) => Promise<void>;
-  
   addContactMessage: (msg: ContactMessage) => Promise<void>;
   subscribeToNewsletter: (email: string) => Promise<boolean>;
   sendNewsletter: (subject: string, content: string, postId?: string) => Promise<void>;
-  
-  // Accessibility (Sync)
   toggleAccessibilityOption: (option: keyof AccessibilitySettings) => void;
   setFontSize: (size: number) => void;
   resetAccessibility: () => void;
@@ -45,102 +42,93 @@ export const useApp = () => {
   return context;
 };
 
-// --- מימוש ה-Provider ---
+
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // 1. אתחול המשתמש ישירות מה-localStorage כדי למנוע ניתוק ברענון
   const [user, setUser] = useState<User | null>(() => {
-    const savedUser = localStorage.getItem('safed_news_user');
-    return savedUser ? JSON.parse(savedUser) : null;
+    const saved = localStorage.getItem('safed_news_user');
+    return saved ? JSON.parse(saved) : null;
   });
 
   const [posts, setPosts] = useState<Post[]>([]);
   const [ads, setAds] = useState<Ad[]>([]);
-  const [comments, setComments] = useState<Comment[]>([]);
-  const [registeredUsers, setRegisteredUsers] = useState<User[]>([]);
-  const [contactMessages, setContactMessages] = useState<ContactMessage[]>([]);
-  const [newsletterSubscribers, setNewsletterSubscribers] = useState<NewsletterSubscriber[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [accessibility, setAccessibility] = useState<AccessibilitySettings>({
-    fontSize: 16,
-    highContrast: false,
-    readableFont: false,
-    grayscale: false,
+    fontSize: 16, highContrast: false, readableFont: false, grayscale: false,
   });
 
-  // --- לוגיקת התחברות עם שמירה בזיכרון ---
-  const login = async (usernameOrEmail: string, password: string): Promise<boolean> => {
-    try {
-      setIsLoading(true);
-      // כאן תבצע את הקריאה ל-API שלך בשרת (Railway)
-      const mockUser: User = { 
-        id: '1', 
-        name: usernameOrEmail, 
-        email: usernameOrEmail, 
-        role: usernameOrEmail === 'admin' ? 'admin' : 'user' 
-      };
+  // טעינת נתונים ראשונית מהשרת (כדי שהמידע לא ייעלם בריענון)
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const postsRes = await axios.get(`${API_URL}/posts`);
+        setPosts(postsRes.data);
+        const adsRes = await axios.get(`${API_URL}/ads`);
+        setAds(adsRes.data);
+      } catch (err) {
+        console.error("Error fetching data:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
 
-      // השורה הקריטית: שמירה בדפדפן
-      localStorage.setItem('safed_news_user', JSON.stringify(mockUser));
-      setUser(mockUser);
-      return true;
-    } catch (error) {
-      console.error('Login failed:', error);
+  // --- התחברות אמיתית ---
+  const login = async (email: string, password: string): Promise<boolean> => {
+    try {
+      // כאן אנחנו שולחים בקשה אמיתית לשרת ב-Railway
+      const res = await axios.post(`${API_URL}/login`, { email, password });
+      if (res.data.user) {
+        localStorage.setItem('safed_news_user', JSON.stringify(res.data.user));
+        setUser(res.data.user);
+        return true;
+      }
       return false;
-    } finally {
-      setIsLoading(false);
+    } catch (err) {
+      return false;
     }
   };
 
+  const register = async (userData: any): Promise<boolean> => {
+    try {
+      const res = await axios.post(`${API_URL}/register`, userData);
+      if (res.data.user) {
+        localStorage.setItem('safed_news_user', JSON.stringify(res.data.user));
+        setUser(res.data.user);
+        return true;
+      }
+      return false;
+    } catch (err) { return false; }
+  };
+
   const logout = () => {
-    // מחיקה מהדפדפן ומה-State
     localStorage.removeItem('safed_news_user');
     setUser(null);
   };
 
-  const register = async (userData: User): Promise<boolean> => {
-    // לוגיקת הרשמה מול השרת
-    return true;
-  };
-
-  // --- ניהול תוכן ---
-  const addPost = async (post: Post) => {
-    setPosts([post, ...posts]);
-  };
-
-  const deletePost = async (id: string) => {
-    setPosts(posts.filter(p => p.id !== id));
-  };
-
-  const incrementViews = (id: string) => {
-    setPosts(posts.map(p => p.id === id ? { ...p, views: (p.views || 0) + 1 } : p));
+  // --- שמירת תוכן אמיתית במסד הנתונים ---
+  const addPost = async (postData: any) => {
+    try {
+      const res = await axios.post(`${API_URL}/posts`, postData);
+      setPosts(prev => [res.data, ...prev]); // עדכון ה-State עם מה שחזר מהמנגו
+    } catch (err) { console.error(err); }
   };
 
   const addContactMessage = async (msg: ContactMessage) => {
-    setContactMessages([msg, ...contactMessages]);
+    await axios.post(`${API_URL}/contact`, msg);
   };
 
-  // --- נגישות ---
+  // פונקציות עזר לנגישות
   const toggleAccessibilityOption = (option: keyof AccessibilitySettings) => {
-    if (option !== 'fontSize') {
-      setAccessibility(prev => ({ ...prev, [option]: !prev[option] }));
-    }
+    if (option !== 'fontSize') setAccessibility(prev => ({ ...prev, [option]: !prev[option] }));
   };
+  const setFontSize = (size: number) => setAccessibility(prev => ({ ...prev, fontSize: size }));
+  const resetAccessibility = () => setAccessibility({ fontSize: 16, highContrast: false, readableFont: false, grayscale: false });
 
-  const setFontSize = (size: number) => {
-    setAccessibility(prev => ({ ...prev, fontSize: size }));
-  };
-
-  const resetAccessibility = () => {
-    setAccessibility({
-      fontSize: 16,
-      highContrast: false,
-      readableFont: false,
-      grayscale: false,
-    });
-  };
-
-  // פונקציות להשלמת ה-Interface
+  // פונקציות ריקות להשלמה
+  const deletePost = async (id: string) => { await axios.delete(`${API_URL}/posts/${id}`); setPosts(prev => prev.filter(p => p.id !== id)); };
+  const incrementViews = (id: string) => {};
   const updateAd = async () => {};
   const createAd = async () => {};
   const deleteAd = async () => {};
@@ -151,8 +139,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   return (
     <AppContext.Provider value={{
-      posts, ads, user, comments, registeredUsers, contactMessages, 
-      newsletterSubscribers, accessibility, isLoading,
+      posts, ads, user, comments: [], registeredUsers: [], contactMessages: [], 
+      newsletterSubscribers: [], accessibility, isLoading,
       addPost, deletePost, incrementViews, updateAd, createAd, deleteAd,
       login, logout, register, addComment, toggleLikeComment,
       addContactMessage, subscribeToNewsletter, sendNewsletter,
