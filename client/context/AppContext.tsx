@@ -56,27 +56,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     fontSize: 16, highContrast: false, readableFont: false, grayscale: false,
   });
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [p, a, u, m] = await Promise.all([
-          axios.get(`${API_URL}/posts`),
-          axios.get(`${API_URL}/ads`),
-          axios.get(`${API_URL}/users`),
-          axios.get(`${API_URL}/contact`)
+useEffect(() => {
+  const fetchData = async () => {
+    try {
+      // טעינת פוסטים ופרסומות - נתיבים ציבוריים
+      const [p, a] = await Promise.all([
+        axios.get(`${API_URL}/posts`),
+        axios.get(`${API_URL}/ads`)
+      ]);
+      setPosts(p.data.posts || p.data);
+      setAds(a.data);
+
+      // משיכת משתמשים והודעות רק אם המשתמש מחובר (יש טוקן)
+      const token = localStorage.getItem('token'); // או השם שבו אתה שומר את הטוקן
+      if (token) {
+        const config = { headers: { 'x-auth-token': token } };
+        const [u, m] = await Promise.all([
+          axios.get(`${API_URL}/users`, config),
+          axios.get(`${API_URL}/contact`, config)
         ]);
-        setPosts(p.data);
-        setAds(a.data);
         setRegisteredUsers(u.data);
         setContactMessages(m.data);
-      } catch (err) {
-        console.error("Error fetching data:", err);
-      } finally {
-        setIsLoading(false);
       }
-    };
-    fetchData();
-  }, []);
+    } catch (err) {
+      console.error("Error fetching data:", err);
+      // לא זורקים שגיאה קריטית כאן כדי שהאתר ימשיך להיטען עבור אורחים
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  fetchData();
+  
+}, []);
 
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
@@ -128,7 +139,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const setFontSize = (size: number) => setAccessibility(prev => ({ ...prev, fontSize: size }));
   const resetAccessibility = () => setAccessibility({ fontSize: 16, highContrast: false, readableFont: false, grayscale: false });
 
-  // פונקציות להשלמה (תוכל לחבר ל-API בהמשך)
   const incrementViews = (id: string) => {};
   const updateAd = async (id: string, updates: any) => {};
   const createAd = async (ad: any) => {};

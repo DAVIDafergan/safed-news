@@ -214,15 +214,21 @@ app.get('/api/ads', async (req, res) => res.json(await Ad.find({ isActive: true 
 app.post('/api/ads', authMiddleware, async (req, res) => res.json(await new Ad(req.body).save()));
 app.post('/api/contact', async (req, res) => res.json(await new ContactMessage(req.body).save()));
 
-// --- 4. הגשת האתר (Frontend) ---
+// 4. הגשת האתר (Frontend)
 
-// הגדרת תיקיית הקבצים הסטטיים - חשוב שזה יהיה לפני ה-app.get('*')
-app.use(express.static(path.join(__dirname, 'client/dist')));
+// נתיב אבסולוטי לתיקיית ה-dist
+const distPath = path.join(__dirname, 'client', 'dist');
 
-// פתרון שגיאת ה-MIME Type: כל בקשה שלא מצאה קובץ סטטי או API תחזיר את ה-index.html
+// חשוב: הגשת קבצים סטטיים חייבת להיות לפני כל ניתוב אחר
+app.use(express.static(distPath));
+
+// ניתוב ה-API נשאר כפי שהוא...
+
+// פתרון שגיאת ה-MIME Type: כל בקשה שאינה API ואינה קובץ סטטי - תחזיר את ה-index.html
 app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'client/dist/index.html'));
+    // בדיקה אם הבקשה היא לקובץ (כמו .css או .js) שלא נמצא
+    if (req.path.includes('.') && !req.path.startsWith('/api')) {
+        return res.status(404).send('Not found');
+    }
+    res.sendFile(path.join(distPath, 'index.html'));
 });
-
-const PORT = process.env.PORT || 8080;
-app.listen(PORT, () => console.log(`🚀 שרת "צפת בתנופה" רץ בפורט ${PORT}`));
