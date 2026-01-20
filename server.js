@@ -183,7 +183,8 @@ app.get('/api/contact', authMiddleware, async (req, res) => res.json(await Conta
 app.post('/api/contact', async (req, res) => res.json(await new ContactMessage(req.body).save()));
 
 // --- 6. הגשת האתר (Frontend) ---
-const distPath = path.resolve(__dirname, 'client', 'dist');
+// שינוי נתיב ה-dist לשורש הפרויקט (ללא תיקיית client)
+const distPath = path.resolve(__dirname, 'dist');
 app.use(express.static(distPath));
 
 // פתרון למסך לבן: מפריד בין קריאות API לבין קריאות לקבצים חסרים
