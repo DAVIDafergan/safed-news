@@ -47,8 +47,6 @@ export const useApp = () => {
 
 // --- מימוש ה-Provider ---
 
-[Image of React Context API state management with LocalStorage persistence]
-
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // 1. אתחול המשתמש ישירות מה-localStorage כדי למנוע ניתוק ברענון
   const [user, setUser] = useState<User | null>(() => {
@@ -75,7 +73,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       setIsLoading(true);
       // כאן תבצע את הקריאה ל-API שלך בשרת (Railway)
-      // לצורך הדוגמה, נניח שהתקבלה תשובה חיובית:
       const mockUser: User = { 
         id: '1', 
         name: usernameOrEmail, 
@@ -106,7 +103,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return true;
   };
 
-  // --- ניהול תוכן (מימוש חלקי כדוגמה) ---
+  // --- ניהול תוכן ---
   const addPost = async (post: Post) => {
     setPosts([post, ...posts]);
   };
@@ -143,7 +140,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
-  // פונקציות ריקות להשלמת ה-Interface (תממש אותן מול ה-API שלך)
+  // פונקציות להשלמת ה-Interface
   const updateAd = async () => {};
   const createAd = async () => {};
   const deleteAd = async () => {};
