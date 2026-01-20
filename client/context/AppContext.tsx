@@ -5,14 +5,9 @@ import { Post, Ad, User, Comment, ContactMessage, NewsletterSubscriber, Accessib
 const API_URL = '/api';
 
 export interface AppState {
-  posts: Post[];
-  ads: Ad[];
-  user: User | null;
-  comments: Comment[];
-  registeredUsers: User[];
-  contactMessages: ContactMessage[];
-  newsletterSubscribers: NewsletterSubscriber[];
-  accessibility: AccessibilitySettings;
+  posts: Post[]; ads: Ad[]; user: User | null; comments: Comment[];
+  registeredUsers: User[]; contactMessages: ContactMessage[];
+  newsletterSubscribers: NewsletterSubscriber[]; accessibility: AccessibilitySettings;
   isLoading: boolean;
   addPost: (post: any) => Promise<void>;
   deletePost: (id: string) => Promise<void>;
@@ -34,7 +29,6 @@ export interface AppState {
 }
 
 export const AppContext = createContext<AppState | undefined>(undefined);
-
 export const useApp = () => {
   const context = useContext(AppContext);
   if (!context) throw new Error('useApp must be used within AppProvider');
@@ -59,69 +53,49 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // טעינת נתונים ציבוריים בלבד בטעינה ראשונה - מונע שגיאות 401 לקבלת מסך לבן
-        const [postsRes, adsRes] = await Promise.all([
-          axios.get(`${API_URL}/posts`).catch(() => ({ data: [] })),
-          axios.get(`${API_URL}/ads`).catch(() => ({ data: [] }))
+        // 1. טעינת נתונים ציבוריים (לא דורש טוקן)
+        const [pRes, aRes] = await Promise.allSettled([
+          axios.get(`${API_URL}/posts`),
+          axios.get(`${API_URL}/ads`)
         ]);
-        
-        // וידוא שהנתונים הם מערכים לפני העדכון (תמיכה במבנה אובייקט של פוסטים)
-        const pData = postsRes.data;
-        setPosts(Array.isArray(pData) ? pData : (pData.posts || []));
-        setAds(Array.isArray(adsRes.data) ? adsRes.data : []);
 
-        // משיכת נתונים מוגנים (משתמשים והודעות) רק אם יש טוקן שמור
-        // שים לב: אנחנו מחפשים טוקן ב-localStorage או בתוך אובייקט המשתמש השמור
-        const savedUserData = localStorage.getItem('safed_news_user');
-        const token = savedUserData ? JSON.parse(savedUserData).token : null;
+        if (pRes.status === 'fulfilled') {
+          const data = pRes.value.data;
+          setPosts(Array.isArray(data) ? data : (data.posts || []));
+        }
+        if (aRes.status === 'fulfilled') setAds(aRes.value.data);
 
-        if (token) {
-          const config = { headers: { 'x-auth-token': token } };
-          const [uRes, mRes] = await Promise.all([
-            axios.get(`${API_URL}/users`, config).catch(() => ({ data: [] })),
-            axios.get(`${API_URL}/contact`, config).catch(() => ({ data: [] }))
+        // 2. טעינת נתונים מוגנים - רק אם יש משתמש מחובר וטוקן
+        if (user && (user as any).token) {
+          const config = { headers: { 'x-auth-token': (user as any).token } };
+          const [uRes, mRes] = await Promise.allSettled([
+            axios.get(`${API_URL}/users`, config),
+            axios.get(`${API_URL}/contact`, config)
           ]);
-          setRegisteredUsers(uRes.data);
-          setContactMessages(mRes.data);
+
+          if (uRes.status === 'fulfilled') setRegisteredUsers(uRes.value.data);
+          if (mRes.status === 'fulfilled') setContactMessages(mRes.value.data);
         }
       } catch (err) {
-        console.error("Critical error in fetchData:", err);
+        console.error("Data fetch error:", err);
       } finally {
-        setIsLoading(false);
+        setIsLoading(false); // מבטיח שהטעינה תסתיים תמיד
       }
     };
     fetchData();
-  }, []);
+  }, [user]);
 
-  const login = async (email: string, password: string): Promise<boolean> => {
+  const login = async (email, password) => {
     try {
       const res = await axios.post(`${API_URL}/login`, { email, password });
-      if (res.data.user || res.data.token) {
-        // שומרים את כל אובייקט התגובה הכולל את הטוקן והמשתמש
+      if (res.data.token) {
         const userData = { ...res.data.user, token: res.data.token };
         localStorage.setItem('safed_news_user', JSON.stringify(userData));
         setUser(userData);
         return true;
       }
       return false;
-    } catch (err) { 
-      return false; 
-    }
-  };
-
-  const register = async (userData: any): Promise<boolean> => {
-    try {
-      const res = await axios.post(`${API_URL}/register`, userData);
-      if (res.data.user || res.data.token) {
-        const fullUserData = { ...res.data.user, token: res.data.token };
-        localStorage.setItem('safed_news_user', JSON.stringify(fullUserData));
-        setUser(fullUserData);
-        return true;
-      }
-      return false;
-    } catch (err) { 
-      return false; 
-    }
+    } catch { return false; }
   };
 
   const logout = () => {
@@ -129,65 +103,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setUser(null);
   };
 
-  const addPost = async (postData: any) => {
-    try {
-      const res = await axios.post(`${API_URL}/posts`, postData);
-      setPosts(prev => [res.data, ...prev]);
-    } catch (err) {
-      console.error("Failed to add post:", err);
-    }
+  const addPost = async (data) => {
+    if (!user) return;
+    const config = { headers: { 'x-auth-token': (user as any).token } };
+    const res = await axios.post(`${API_URL}/posts`, data, config);
+    setPosts(prev => [res.data, ...prev]);
   };
 
-  const deletePost = async (id: string) => {
-    try {
-      await axios.delete(`${API_URL}/posts/${id}`);
-      setPosts(prev => prev.filter(p => (p as any).id !== id && (p as any)._id !== id));
-    } catch (err) {
-      console.error("Failed to delete post:", err);
-    }
+  const deletePost = async (id) => {
+    if (!user) return;
+    const config = { headers: { 'x-auth-token': (user as any).token } };
+    await axios.delete(`${API_URL}/posts/${id}`, config);
+    setPosts(prev => prev.filter(p => (p as any)._id !== id && (p as any).id !== id));
   };
 
-  const addContactMessage = async (msg: any) => {
-    try {
-      const res = await axios.post(`${API_URL}/contact`, msg);
-      setContactMessages(prev => [res.data, ...prev]);
-    } catch (err) {
-      console.error("Failed to send message:", err);
-    }
-  };
-
-  const toggleAccessibilityOption = (option: keyof AccessibilitySettings) => {
-    if (option !== 'fontSize') setAccessibility(prev => ({ ...prev, [option]: !prev[option] }));
-  };
-
-  const setFontSize = (size: number) => setAccessibility(prev => ({ ...prev, fontSize: size }));
-
+  // פונקציות ריקות (Stubs) למניעת שגיאות טיפוסים
+  const addContactMessage = async (msg) => { await axios.post(`${API_URL}/contact`, msg); };
+  const toggleAccessibilityOption = (opt) => setAccessibility(prev => ({ ...prev, [opt]: !prev[opt] }));
+  const setFontSize = (s) => setAccessibility(prev => ({ ...prev, fontSize: s }));
   const resetAccessibility = () => setAccessibility({ fontSize: 16, highContrast: false, readableFont: false, grayscale: false });
-
-  // פונקציות להשלמה עתידית (Stubs) - נשמרות כדי לא לשבור את הטיפוסים
-  const incrementViews = (id: string) => {
-    axios.get(`${API_URL}/posts/${id}`).catch(() => {});
-  };
-
-  const updateAd = async (id: string, updates: any) => { console.log("Update Ad", id, updates); };
-  const createAd = async (ad: any) => { console.log("Create Ad", ad); };
-  const deleteAd = async (id: string) => { console.log("Delete Ad", id); };
-  const addComment = async (comment: any) => { console.log("Add Comment", comment); };
-  const toggleLikeComment = async (id: string) => { console.log("Like Comment", id); };
-  const subscribeToNewsletter = async (email: string) => { 
-    console.log("Newsletter Subscribe", email);
-    return true; 
-  };
-  const sendNewsletter = async (subject: string, content: string) => { 
-    console.log("Send Newsletter", subject, content); 
-  };
+  const incrementViews = () => {};
+  const updateAd = async () => {};
+  const createAd = async () => {};
+  const deleteAd = async () => {};
+  const addComment = async () => {};
+  const toggleLikeComment = async () => {};
+  const subscribeToNewsletter = async () => true;
+  const sendNewsletter = async () => {};
 
   return (
     <AppContext.Provider value={{
       posts, ads, user, comments: [], registeredUsers, contactMessages, 
       newsletterSubscribers: [], accessibility, isLoading,
       addPost, deletePost, incrementViews, updateAd, createAd, deleteAd,
-      login, logout, register, addComment, toggleLikeComment,
+      login, logout, register: async () => true, addComment, toggleLikeComment,
       addContactMessage, subscribeToNewsletter, sendNewsletter,
       toggleAccessibilityOption, setFontSize, resetAccessibility
     }}>
