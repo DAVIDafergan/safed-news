@@ -56,7 +56,7 @@ const PostSchema = new mongoose.Schema({
     excerpt: String,
     author: String,
     tags: [String],
-    isFeatured: { type: Boolean, default: false }, // שדה קריטי עבור הסליידר הראשי
+    isFeatured: { type: Boolean, default: false }, 
     views: { type: Number, default: 0 },
     likes: { type: Number, default: 0 },
     date: { type: String, default: () => new Date().toLocaleDateString('he-IL') }
@@ -103,7 +103,6 @@ const authMiddleware = (req, res, next) => {
     }
 };
 
-// Middleware חדש: מאפשר רק למנהלים לבצע פעולות כתיבה/מחיקה
 const adminMiddleware = (req, res, next) => {
     if (req.user && (req.user.role === 'admin' || req.user.role === 'editor')) {
         next();
@@ -114,13 +113,13 @@ const adminMiddleware = (req, res, next) => {
 
 // --- 5. נתיבי API (Routes) ---
 
-// --- פוסטים וכתבות ---
+// פוסטים וכתבות
 app.get('/api/posts', async (req, res) => {
     try {
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 10;
         const category = req.query.category;
-        const featured = req.query.featured; // מאפשר למשוך רק פוסטים לסליידר
+        const featured = req.query.featured; 
         
         let query = {};
         if (category) query.category = category;
@@ -132,20 +131,20 @@ app.get('/api/posts', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// יצירת פוסט - מנהל בלבד
+// יצירת פוסט - עם תיקון ל-ID
 app.post('/api/posts', [authMiddleware, adminMiddleware], async (req, res) => {
     try {
         console.log("📥 נתונים שהתקבלו ליצירת פוסט:", req.body);
         
-        // וודא שכל שדות החובה קיימים ב-Body
         if (!req.body.title || !req.body.content) {
-            console.log("❌ חסרים שדות חובה: title או content");
             return res.status(400).json({ msg: "נא למלא כותרת ותוכן" });
         }
 
+        // הסרת ה-ID הידני מה-body כדי למנוע שגיאת BSON/CastError
+        const { id, _id, ...cleanData } = req.body;
+
         const newPost = new Post({
-            ...req.body,
-            // המרה בטוחה של שדות בוליאניים כדי למנוע טעויות מה-Frontend
+            ...cleanData,
             isFeatured: req.body.isFeatured === true || req.body.isFeatured === 'true',
             date: new Date().toLocaleDateString('he-IL')
         });
@@ -155,15 +154,13 @@ app.post('/api/posts', [authMiddleware, adminMiddleware], async (req, res) => {
         res.json(savedPost);
     } catch (err) { 
         console.error("🔥 שגיאה קריטית בשמירת פוסט:", err);
-        // החזרת הודעת השגיאה המפורטת ל-Frontend כדי שתראה אותה ב-Console
         res.status(500).json({ 
             error: "שגיאת שרת פנימית", 
-            message: err.message,
-            stack: err.stack 
+            message: err.message
         }); 
     }
 });
-// עדכון פוסט קיים (עבור עריכה או סימון כ-Featured)
+
 app.patch('/api/posts/:id', [authMiddleware, adminMiddleware], async (req, res) => {
     try {
         const updatedPost = await Post.findByIdAndUpdate(req.params.id, req.body, { new: true });
@@ -178,7 +175,7 @@ app.delete('/api/posts/:id', [authMiddleware, adminMiddleware], async (req, res)
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// --- מבזקים (Alerts) ---
+// מבזקים (Alerts)
 app.get('/api/alerts', async (req, res) => {
     try {
         const alerts = await Alert.find({ active: true }).sort({ _id: -1 });
@@ -188,7 +185,8 @@ app.get('/api/alerts', async (req, res) => {
 
 app.post('/api/alerts', [authMiddleware, adminMiddleware], async (req, res) => {
     try {
-        const newAlert = new Alert(req.body);
+        const { id, _id, ...cleanData } = req.body;
+        const newAlert = new Alert(cleanData);
         await newAlert.save();
         res.json(newAlert);
     } catch (err) { res.status(500).json({ error: err.message }); }
@@ -201,7 +199,7 @@ app.delete('/api/alerts/:id', [authMiddleware, adminMiddleware], async (req, res
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// --- אימות ומשתמשים ---
+// אימות ומשתמשים
 app.post('/api/register', async (req, res) => {
     const { email, password, name } = req.body;
     try {
@@ -244,9 +242,17 @@ app.post('/api/login', async (req, res) => {
 
 app.get('/api/users', authMiddleware, async (req, res) => { res.json(await User.find().select('-password')); });
 
-// --- פרסומות ומנויים ---
+// פרסומות ומנויים
 app.get('/api/ads', async (req, res) => res.json(await Ad.find({ isActive: true })));
-app.post('/api/ads', [authMiddleware, adminMiddleware], async (req, res) => res.json(await new Ad(req.body).save()));
+
+app.post('/api/ads', [authMiddleware, adminMiddleware], async (req, res) => {
+    try {
+        const { id, _id, ...cleanData } = req.body;
+        const newAd = new Ad(cleanData);
+        const savedAd = await newAd.save();
+        res.json(savedAd);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
 
 app.post('/api/newsletter/subscribe', async (req, res) => {
     try {
@@ -266,12 +272,8 @@ const distPath = path.resolve(__dirname, 'dist');
 app.use(express.static(distPath));
 
 app.get('*', (req, res) => {
-    if (req.path.startsWith('/api')) { 
-        return res.status(404).json({ error: 'API route not found' }); 
-    }
-    if (req.path.includes('.')) { 
-        return res.status(404).send('Resource not found'); 
-    }
+    if (req.path.startsWith('/api')) return res.status(404).json({ error: 'API route not found' });
+    if (req.path.includes('.')) return res.status(404).send('Resource not found');
     res.sendFile(path.join(distPath, 'index.html'));
 });
 
