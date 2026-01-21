@@ -10,26 +10,26 @@ require('dotenv').config();
 
 const app = express();
 
-// --- 1. הגדרות ליבה (קריטי ל-Railway) ---
-app.set('trust proxy', 1); // מאפשר לזהות IP אמיתי מאחורי הפרוקסי
+// --- 1. הגדרות ליבה ואבטחה ---
+app.set('trust proxy', 1); 
 
-// --- 2. אבטחה ו-Middleware ---
 app.use(helmet({
-    contentSecurityPolicy: false, // פתרון לשגיאת ReactDOM is not defined - מאפשר טעינת סקריפטים של React
+    contentSecurityPolicy: false, 
     crossOriginEmbedderPolicy: false,
 }));
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json()); // מאפשר קריאת JSON ב-Body
 
+// הגבלת כמות בקשות למניעת התקפות
 const limiter = rateLimit({
     windowMs: 15 * 60 * 1000, 
-    max: 200, 
+    max: 500, // הגדלתי מעט כדי שלא תיחסם בזמן פיתוח
     message: { msg: 'יותר מדי בקשות, נא לנסות שוב בעוד כמה דקות' }
 });
 app.use('/api/', limiter);
 
-// --- 3. חיבור למסד הנתונים ---
+// --- 2. חיבור למסד הנתונים ---
 mongoose.connect(process.env.MONGO_URI)
     .then(() => console.log('✅ מחובר למנגו אטלס - המערכת מוכנה'))
     .catch(err => {
@@ -37,21 +37,16 @@ mongoose.connect(process.env.MONGO_URI)
         process.exit(1);
     });
 
-// --- Middleware לאימות מנהלים ---
-const authMiddleware = (req, res, next) => {
-    const token = req.header('x-auth-token');
-    if (!token) return res.status(401).json({ msg: 'גישה נדחתה, חסר טוקן' });
+// --- 3. תבניות נתונים (Models) ---
 
-    try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        req.user = decoded.user;
-        next();
-    } catch (e) {
-        res.status(401).json({ msg: 'הטוקן אינו תקין' });
-    }
-};
-
-// --- 4. תבניות נתונים (Models) ---
+const UserSchema = new mongoose.Schema({
+    email: { type: String, unique: true, required: true, lowercase: true, trim: true },
+    password: { type: String, required: true },
+    name: String,
+    role: { type: String, default: 'user', enum: ['user', 'admin', 'editor'] },
+    joinedDate: { type: String, default: () => new Date().toLocaleDateString('he-IL') }
+});
+const User = mongoose.model('User', UserSchema);
 
 const PostSchema = new mongoose.Schema({
     title: { type: String, required: true },
@@ -65,20 +60,9 @@ const PostSchema = new mongoose.Schema({
     isFeatured: { type: Boolean, default: false },
     views: { type: Number, default: 0 },
     likes: { type: Number, default: 0 },
-    shortLinkCode: String,
     date: { type: String, default: () => new Date().toLocaleDateString('he-IL') }
 });
-PostSchema.set('toJSON', { virtuals: true });
 const Post = mongoose.model('Post', PostSchema);
-
-const UserSchema = new mongoose.Schema({
-    email: { type: String, unique: true, required: true },
-    password: { type: String, required: true },
-    name: String,
-    role: { type: String, default: 'user', enum: ['user', 'admin', 'editor'] },
-    joinedDate: { type: String, default: () => new Date().toLocaleDateString('he-IL') }
-});
-const User = mongoose.model('User', UserSchema);
 
 const Ad = mongoose.model('Ad', new mongoose.Schema({
     area: String, title: String, isActive: { type: Boolean, default: true },
@@ -98,8 +82,29 @@ const ContactMessage = mongoose.model('ContactMessage', new mongoose.Schema({
     read: { type: Boolean, default: false }
 }));
 
-// --- 5. נתיבי API ---
+const SubscriberSchema = new mongoose.Schema({
+    email: { type: String, unique: true, required: true },
+    date: { type: String, default: () => new Date().toLocaleDateString('he-IL') }
+});
+const Subscriber = mongoose.model('Subscriber', SubscriberSchema);
 
+// --- 4. Middleware לאימות ---
+const authMiddleware = (req, res, next) => {
+    const token = req.header('x-auth-token');
+    if (!token) return res.status(401).json({ msg: 'גישה נדחתה, חסר טוקן' });
+
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        req.user = decoded.user;
+        next();
+    } catch (e) {
+        res.status(401).json({ msg: 'הטוקן אינו תקין' });
+    }
+};
+
+// --- 5. נתיבי API (Routes) ---
+
+// --- פוסטים ---
 app.get('/api/posts', async (req, res) => {
     try {
         const page = parseInt(req.query.page) || 1;
@@ -137,68 +142,90 @@ app.delete('/api/posts/:id', authMiddleware, async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/api/alerts', async (req, res) => res.json(await Alert.find({ active: true }).sort({ _id: -1 })));
-app.post('/api/alerts', authMiddleware, async (req, res) => res.json(await new Alert(req.body).save()));
-app.delete('/api/alerts/:id', authMiddleware, async (req, res) => {
-    await Alert.findByIdAndDelete(req.params.id);
-    res.json({ success: true });
-});
-
+// --- אימות משתמשים (Auth) ---
 app.post('/api/register', async (req, res) => {
     const { email, password, name } = req.body;
     try {
-        let user = await User.findOne({ email });
+        let user = await User.findOne({ email: email.toLowerCase() });
         if (user) return res.status(400).json({ msg: 'המשתמש כבר קיים' });
+
         user = new User({ email, password, name });
         const salt = await bcrypt.genSalt(10);
         user.password = await bcrypt.hash(password, salt);
         await user.save();
+
         const payload = { user: { id: user.id, role: user.role } };
         jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' }, (err, token) => {
             if (err) throw err;
             res.json({ token, user: { id: user.id, name: user.name, role: user.role } });
         });
-    } catch (err) { res.status(500).send('שגיאת שרת ברישום'); }
+    } catch (err) { 
+        console.error(err);
+        res.status(500).send('שגיאת שרת ברישום'); 
+    }
 });
 
 app.post('/api/login', async (req, res) => {
     const { email, password } = req.body;
+    console.log(`🔑 ניסיון התחברות עבור: ${email}`); // לוג לדיבאג
     try {
-        let user = await User.findOne({ email });
-        if (!user) return res.status(400).json({ msg: 'פרטים שגויים' });
+        let user = await User.findOne({ email: email.toLowerCase() });
+        if (!user) {
+            console.log("❌ משתמש לא נמצא במסד הנתונים");
+            return res.status(400).json({ msg: 'פרטים שגויים' });
+        }
+
         const isMatch = await bcrypt.compare(password, user.password);
-        if (!isMatch) return res.status(400).json({ msg: 'פרטים שגויים' });
+        if (!isMatch) {
+            console.log("❌ סיסמה לא תואמת");
+            return res.status(400).json({ msg: 'פרטים שגויים' });
+        }
+
         const payload = { user: { id: user.id, role: user.role } };
         jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' }, (err, token) => {
             if (err) throw err;
+            console.log("✅ התחברות הצליחה");
             res.json({ token, user: { id: user.id, name: user.name, role: user.role } });
         });
-    } catch (err) { res.status(500).send('שגיאת שרת בהתחברות'); }
+    } catch (err) { 
+        console.error(err);
+        res.status(500).send('שגיאת שרת בהתחברות'); 
+    }
 });
 
+// --- שונות (פרסומות, התראות, קשר) ---
 app.get('/api/users', authMiddleware, async (req, res) => { res.json(await User.find().select('-password')); });
 app.get('/api/ads', async (req, res) => res.json(await Ad.find({ isActive: true })));
 app.post('/api/ads', authMiddleware, async (req, res) => res.json(await new Ad(req.body).save()));
+app.get('/api/alerts', async (req, res) => res.json(await Alert.find({ active: true }).sort({ _id: -1 })));
 app.get('/api/contact', authMiddleware, async (req, res) => res.json(await ContactMessage.find().sort({ _id: -1 })));
 app.post('/api/contact', async (req, res) => res.json(await new ContactMessage(req.body).save()));
 
+app.post('/api/newsletter/subscribe', async (req, res) => {
+    try {
+        const { email } = req.body;
+        const existing = await Subscriber.findOne({ email });
+        if (existing) return res.status(400).json({ msg: 'כבר רשום לניוזלטר' });
+        await new Subscriber({ email }).save();
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // --- 6. הגשת האתר (Frontend) ---
-// שינוי נתיב ה-dist לשורש הפרויקט (ללא תיקיית client)
 const distPath = path.resolve(__dirname, 'dist');
 app.use(express.static(distPath));
 
-// פתרון למסך לבן: מפריד בין קריאות API לבין קריאות לקבצים חסרים
 app.get('*', (req, res) => {
     if (req.path.startsWith('/api')) { 
         return res.status(404).json({ error: 'API route not found' }); 
     }
-    // אם הבקשה היא לקובץ (מכיל נקודה) והוא לא נמצא ב-static, זו שגיאה אמיתית
     if (req.path.includes('.')) { 
         return res.status(404).send('Resource not found'); 
     }
     res.sendFile(path.join(distPath, 'index.html'));
 });
 
+// --- 7. הרצת השרת ---
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, "0.0.0.0", () => { 
     console.log(`🚀 שרת "צפת בתנופה" באוויר בפורט ${PORT}`); 
