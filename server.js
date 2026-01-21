@@ -6,6 +6,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken'); 
 const helmet = require('helmet'); 
 const rateLimit = require('express-rate-limit'); 
+const fs = require('fs'); // ייבוא ספריית מערכת הקבצים להזרקת מטא-דאטה
 require('dotenv').config();
 
 const app = express();
@@ -59,6 +60,7 @@ const PostSchema = new mongoose.Schema({
     isFeatured: { type: Boolean, default: false }, // שדה קריטי עבור הסליידר הראשי
     views: { type: Number, default: 0 },
     likes: { type: Number, default: 0 },
+    shortLinkCode: { type: String, unique: true }, // שדה לקוד לינק קצר
     date: { type: String, default: () => new Date().toLocaleDateString('he-IL') }
 });
 const Post = mongoose.model('Post', PostSchema);
@@ -143,7 +145,7 @@ app.get('/api/posts', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// יצירת פוסט - עם תיקון ל-ID
+// יצירת פוסט - עם תיקון ל-ID ויצירת shortLinkCode אוטומטית
 app.post('/api/posts', [authMiddleware, adminMiddleware], async (req, res) => {
     try {
         console.log("📥 נתונים שהתקבלו ליצירת פוסט:", req.body);
@@ -154,6 +156,11 @@ app.post('/api/posts', [authMiddleware, adminMiddleware], async (req, res) => {
         }
 
         const { id, _id, ...cleanData } = req.body;
+
+        // יצירת קוד ייחודי לשיתוף אם לא נשלח מה-Frontend
+        if (!cleanData.shortLinkCode) {
+            cleanData.shortLinkCode = Math.floor(100000 + Math.random() * 900000).toString();
+        }
 
         const newPost = new Post({
             ...cleanData,
@@ -317,7 +324,38 @@ app.post('/api/newsletter/subscribe', async (req, res) => {
 app.get('/api/contact', authMiddleware, async (req, res) => res.json(await ContactMessage.find().sort({ _id: -1 })));
 app.post('/api/contact', async (req, res) => res.json(await new ContactMessage(req.body).save()));
 
-// --- 6. הגשת האתר (Frontend) ---
+// --- 6. הגדרות שיתוף דינמיות (Metadata Injection) ---
+
+const serveWithMeta = async (req, res, searchField, searchValue) => {
+    try {
+        const query = {};
+        query[searchField] = searchValue;
+        const post = await Post.findOne(query);
+        const indexPath = path.resolve(__dirname, 'dist', 'index.html');
+        let htmlData = fs.readFileSync(indexPath, 'utf8');
+
+        if (post) {
+            // הזרקת נתוני הפוסט לתגיות המטא של ה-HTML
+            htmlData = htmlData
+                .replace(/<title>.*?<\/title>/g, `<title>${post.title} | צפת בתנופה</title>`)
+                .replace(/property="og:title" content=".*?"/g, `property="og:title" content="${post.title}"`)
+                .replace(/property="og:description" content=".*?"/g, `property="og:description" content="${post.excerpt || 'לחצו לקריאת הכתבה המלאה'}"`)
+                .replace(/property="og:image" content=".*?"/g, `property="og:image" content="${post.imageUrl || 'https://zfatbt.com/logo.png'}"`)
+                .replace(/property="og:url" content=".*?"/g, `property="og:url" content="https://zfatbt.com/article/${post._id}"`);
+        }
+        res.send(htmlData);
+    } catch (err) {
+        res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+    }
+};
+
+// נתיב הלינק הקצר (למשל: /p/123456)
+app.get('/p/:shortCode', (req, res) => serveWithMeta(req, res, 'shortLinkCode', req.params.shortCode));
+
+// נתיב הכתבה המלא (למשל: /article/ID)
+app.get('/article/:id', (req, res) => serveWithMeta(req, res, '_id', req.params.id));
+
+// --- 7. הגשת האתר (Frontend) ---
 const distPath = path.resolve(__dirname, 'dist');
 app.use(express.static(distPath));
 
@@ -327,7 +365,7 @@ app.get('*', (req, res) => {
     res.sendFile(path.join(distPath, 'index.html'));
 });
 
-// --- 7. הרצת השרת ---
+// --- 8. הרצת השרת ---
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, "0.0.0.0", () => { 
     console.log(`🚀 שרת "צפת בתנופה" באוויר בפורט ${PORT}`); 
