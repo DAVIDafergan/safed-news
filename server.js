@@ -135,12 +135,34 @@ app.get('/api/posts', async (req, res) => {
 // יצירת פוסט - מנהל בלבד
 app.post('/api/posts', [authMiddleware, adminMiddleware], async (req, res) => {
     try {
-        const newPost = new Post(req.body);
-        await newPost.save();
-        res.json(newPost);
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
+        console.log("📥 נתונים שהתקבלו ליצירת פוסט:", req.body);
+        
+        // וודא שכל שדות החובה קיימים ב-Body
+        if (!req.body.title || !req.body.content) {
+            console.log("❌ חסרים שדות חובה: title או content");
+            return res.status(400).json({ msg: "נא למלא כותרת ותוכן" });
+        }
 
+        const newPost = new Post({
+            ...req.body,
+            // המרה בטוחה של שדות בוליאניים כדי למנוע טעויות מה-Frontend
+            isFeatured: req.body.isFeatured === true || req.body.isFeatured === 'true',
+            date: new Date().toLocaleDateString('he-IL')
+        });
+
+        const savedPost = await newPost.save();
+        console.log("✅ הפוסט נשמר בהצלחה:", savedPost._id);
+        res.json(savedPost);
+    } catch (err) { 
+        console.error("🔥 שגיאה קריטית בשמירת פוסט:", err);
+        // החזרת הודעת השגיאה המפורטת ל-Frontend כדי שתראה אותה ב-Console
+        res.status(500).json({ 
+            error: "שגיאת שרת פנימית", 
+            message: err.message,
+            stack: err.stack 
+        }); 
+    }
+});
 // עדכון פוסט קיים (עבור עריכה או סימון כ-Featured)
 app.patch('/api/posts/:id', [authMiddleware, adminMiddleware], async (req, res) => {
     try {
