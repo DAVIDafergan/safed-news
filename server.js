@@ -56,7 +56,7 @@ const PostSchema = new mongoose.Schema({
     excerpt: String,
     author: String,
     tags: [String],
-    isFeatured: { type: Boolean, default: false }, 
+    isFeatured: { type: Boolean, default: false }, // שדה קריטי עבור הסליידר הראשי
     views: { type: Number, default: 0 },
     likes: { type: Number, default: 0 },
     date: { type: String, default: () => new Date().toLocaleDateString('he-IL') }
@@ -87,6 +87,18 @@ const SubscriberSchema = new mongoose.Schema({
 });
 const Subscriber = mongoose.model('Subscriber', SubscriberSchema);
 
+// מודל חדש לתגובות
+const CommentSchema = new mongoose.Schema({
+    postId: { type: mongoose.Schema.Types.ObjectId, ref: 'Post', required: true },
+    userId: String,
+    userName: { type: String, required: true },
+    content: { type: String, required: true },
+    likes: { type: Number, default: 0 },
+    likedBy: [String],
+    date: { type: String, default: () => new Date().toLocaleString('he-IL') }
+});
+const Comment = mongoose.model('Comment', CommentSchema);
+
 // --- 4. Middleware לאימות והרשאות ---
 
 const authMiddleware = (req, res, next) => {
@@ -113,7 +125,7 @@ const adminMiddleware = (req, res, next) => {
 
 // --- 5. נתיבי API (Routes) ---
 
-// פוסטים וכתבות
+// --- פוסטים וכתבות ---
 app.get('/api/posts', async (req, res) => {
     try {
         const page = parseInt(req.query.page) || 1;
@@ -137,10 +149,10 @@ app.post('/api/posts', [authMiddleware, adminMiddleware], async (req, res) => {
         console.log("📥 נתונים שהתקבלו ליצירת פוסט:", req.body);
         
         if (!req.body.title || !req.body.content) {
+            console.log("❌ חסרים שדות חובה: title או content");
             return res.status(400).json({ msg: "נא למלא כותרת ותוכן" });
         }
 
-        // הסרת ה-ID הידני מה-body כדי למנוע שגיאת BSON/CastError
         const { id, _id, ...cleanData } = req.body;
 
         const newPost = new Post({
@@ -175,7 +187,45 @@ app.delete('/api/posts/:id', [authMiddleware, adminMiddleware], async (req, res)
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// מבזקים (Alerts)
+// --- תגובות (Comments) ---
+app.get('/api/comments', async (req, res) => {
+    try {
+        const comments = await Comment.find().sort({ _id: -1 });
+        res.json(comments);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/comments', async (req, res) => {
+    try {
+        const { id, _id, ...cleanData } = req.body;
+        const newComment = new Comment(cleanData);
+        await newComment.save();
+        res.json(newComment);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/comments/:id/like', authMiddleware, async (req, res) => {
+    try {
+        const comment = await Comment.findById(req.params.id);
+        if (!comment) return res.status(404).json({ msg: 'התגובה לא נמצאה' });
+
+        const userId = req.user.id;
+        const index = comment.likedBy.indexOf(userId);
+
+        if (index === -1) {
+            comment.likedBy.push(userId);
+            comment.likes += 1;
+        } else {
+            comment.likedBy.splice(index, 1);
+            comment.likes -= 1;
+        }
+
+        await comment.save();
+        res.json(comment);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// --- מבזקים (Alerts) ---
 app.get('/api/alerts', async (req, res) => {
     try {
         const alerts = await Alert.find({ active: true }).sort({ _id: -1 });
@@ -199,7 +249,7 @@ app.delete('/api/alerts/:id', [authMiddleware, adminMiddleware], async (req, res
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// אימות ומשתמשים
+// --- אימות ומשתמשים ---
 app.post('/api/register', async (req, res) => {
     const { email, password, name } = req.body;
     try {
@@ -242,7 +292,7 @@ app.post('/api/login', async (req, res) => {
 
 app.get('/api/users', authMiddleware, async (req, res) => { res.json(await User.find().select('-password')); });
 
-// פרסומות ומנויים
+// --- פרסומות ומנויים ---
 app.get('/api/ads', async (req, res) => res.json(await Ad.find({ isActive: true })));
 
 app.post('/api/ads', [authMiddleware, adminMiddleware], async (req, res) => {

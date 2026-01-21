@@ -2,13 +2,13 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, Navigate, Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { CATEGORY_COLORS, Comment } from '../types';
-import { Calendar, User, Eye, Share2, Tag, ThumbsUp, MessageCircle, Send, ArrowUpDown } from 'lucide-react';
+import { Calendar, User, Eye, Share2, Tag, ThumbsUp, MessageCircle, Send, ArrowUpDown, Loader2 } from 'lucide-react';
 import { AdUnit } from '../components/AdUnit';
 import { PostCard } from '../components/PostCard';
 
 export const Article: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const { posts, ads, user, comments, addComment, toggleLikeComment, incrementViews } = useApp();
+  const { posts, ads, user, isLoading, comments, addComment, toggleLikeComment, incrementViews } = useApp();
   const [commentText, setCommentText] = useState('');
   const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'top'>('newest');
 
@@ -18,26 +18,34 @@ export const Article: React.FC = () => {
       incrementViews(id);
     }
     window.scrollTo(0, 0);
-  }, [id]); // Intentionally not including incrementViews to avoid dependency loops if context updates
+  }, [id]);
 
-  const post = posts.find((p) => p.id === id);
+  // התיקון לזיהוי הפוסט לפי ID של מונגו או ID רגיל
+  const post = posts.find((p) => (p as any)._id === id || p.id === id);
   const bottomAd = ads.find(a => a.area === 'article_bottom' && a.isActive);
 
   // Filter comments for this post
-  const articleComments = comments.filter(c => c.postId === post?.id);
+  const articleComments = comments.filter(c => c.postId === ((post as any)?._id || post?.id));
 
   // Sort comments logic
   const sortedComments = useMemo(() => {
     const list = [...articleComments];
     if (sortBy === 'newest') {
-      return list.reverse(); // Assuming original list is oldest-first
+      return list.reverse(); 
     }
     if (sortBy === 'top') {
       return list.sort((a, b) => b.likes - a.likes);
     }
-    // 'oldest' is default (original order)
     return list;
   }, [articleComments, sortBy]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <Loader2 className="animate-spin text-red-700" size={48} />
+      </div>
+    );
+  }
 
   if (!post) {
     return <Navigate to="/" />;
@@ -45,8 +53,9 @@ export const Article: React.FC = () => {
 
   const categoryColor = CATEGORY_COLORS[post.category] || 'bg-gray-600';
   
+  // תיקון סינון כתבות קשורות
   const relatedPosts = posts
-    .filter(p => p.category === post.category && p.id !== post.id)
+    .filter(p => p.category === post.category && (p as any)._id !== (post as any)._id && p.id !== post.id)
     .slice(0, 3);
 
   const shareOnWhatsapp = () => {
@@ -60,7 +69,7 @@ export const Article: React.FC = () => {
 
     const newComment: Comment = {
       id: Date.now().toString(),
-      postId: post.id,
+      postId: (post as any)._id || post.id,
       userId: user ? user.id : `guest-${Date.now()}`,
       userName: user ? user.name : 'אורח',
       content: commentText,
@@ -71,7 +80,7 @@ export const Article: React.FC = () => {
 
     addComment(newComment);
     setCommentText('');
-    setSortBy('newest'); // Switch to newest to see the new comment
+    setSortBy('newest'); 
   };
 
   return (
@@ -89,7 +98,7 @@ export const Article: React.FC = () => {
             <User size={14} /> {post.author}
           </span>
           <span className="flex items-center text-gray-500 gap-1">
-            <Eye size={14} /> {post.views.toLocaleString()} צפיות
+            <Eye size={14} /> {post.views?.toLocaleString()} צפיות
           </span>
         </div>
 
@@ -111,19 +120,22 @@ export const Article: React.FC = () => {
             <Share2 size={18} />
             WhatsApp
           </button>
-          <button className="bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-full transition-colors">
-             <span className="sr-only">Facebook</span>
+          <button className="bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-full transition-colors font-bold w-10 h-10 flex items-center justify-center">
              F
           </button>
-          <button className="bg-sky-500 hover:bg-sky-600 text-white p-2 rounded-full transition-colors">
-             <span className="sr-only">Twitter</span>
+          <button className="bg-sky-500 hover:bg-sky-600 text-white p-2 rounded-full transition-colors font-bold w-10 h-10 flex items-center justify-center">
              T
           </button>
         </div>
 
-        {/* Main Image */}
+        {/* Main Image - תיקון לוגו ברירת מחדל */}
         <div className="rounded-xl overflow-hidden shadow-lg mb-8">
-          <img src={post.imageUrl} alt={post.title} className="w-full h-auto object-cover max-h-[500px]" />
+          <img 
+            src={post.imageUrl || '/assets/logo.png'} 
+            alt={post.title} 
+            className="w-full h-auto object-cover max-h-[500px]" 
+            onError={(e) => { e.currentTarget.src = '/assets/logo.png'; }}
+          />
           <div className="bg-gray-100 px-4 py-2 text-xs text-gray-500 text-left">
             צילום: {post.imageCredit || 'דוברות / רשתות חברתיות'}
           </div>
@@ -137,7 +149,7 @@ export const Article: React.FC = () => {
         
         {/* Tags */}
         <div className="mt-12 flex flex-wrap gap-2">
-          {post.tags.map(tag => (
+          {post.tags?.map(tag => (
             <span key={tag} className="bg-gray-100 text-gray-600 px-3 py-1 rounded-full text-sm flex items-center gap-1 hover:bg-gray-200 cursor-pointer transition">
               <Tag size={12} /> {tag}
             </span>
@@ -192,7 +204,6 @@ export const Article: React.FC = () => {
                       <Link to="/login" className="font-bold hover:underline">התחבר</Link>
                       <span>או</span>
                       <Link to="/register" className="font-bold hover:underline">הירשם</Link>
-                      <span>לשמירת היסטוריה וקבלת התראות.</span>
                     </div>
                  )}
                  <textarea
@@ -275,7 +286,7 @@ export const Article: React.FC = () => {
              
              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-6xl mx-auto">
                {relatedPosts.map(p => (
-                 <PostCard key={p.id} post={p} />
+                 <PostCard key={(p as any)._id || p.id} post={p} />
                ))}
              </div>
           </div>

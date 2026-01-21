@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Clock, Share2, ChevronLeft, Loader2, Eye } from 'lucide-react';
+import { Clock, Share2, ChevronLeft, Loader2, Eye, Trash2 } from 'lucide-react';
 import { Post, CATEGORY_COLORS } from '../types';
+import { useApp } from '../context/AppContext';
 
 interface PostCardProps {
   post: Post;
@@ -10,8 +11,12 @@ interface PostCardProps {
 
 export const PostCard: React.FC<PostCardProps> = ({ post, layout = 'grid' }) => {
   const navigate = useNavigate();
+  const { user, deletePost } = useApp();
   const [isLoading, setIsLoading] = useState(false);
   const categoryColor = CATEGORY_COLORS[post.category] || 'bg-gray-600';
+
+  // התיקון לניווט: שימוש ב-_id של MongoDB
+  const postId = (post as any)._id || post.id;
 
   const shareOnWhatsapp = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -28,20 +33,39 @@ export const PostCard: React.FC<PostCardProps> = ({ post, layout = 'grid' }) => 
     // Simulate network request/loading time for visual feedback
     setTimeout(() => {
       setIsLoading(false);
-      navigate(`/article/${post.id}`);
+      navigate(`/article/${postId}`);
     }, 600);
+  };
+
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (window.confirm('האם אתה בטוח שברצונך למחוק כתבה זו?')) {
+      await deletePost(postId);
+    }
   };
 
   if (layout === 'list') {
     return (
-      <Link to={`/article/${post.id}`} className="flex gap-5 group bg-white p-4 rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 border border-gray-100 overflow-hidden transform hover:-translate-x-1">
+      <Link to={`/article/${postId}`} className="flex gap-5 group bg-white p-4 rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 border border-gray-100 overflow-hidden transform hover:-translate-x-1 relative">
+        {/* כפתור מחיקה למנהל בלבד ברשימה */}
+        {user?.role === 'admin' && (
+          <button 
+            onClick={handleDelete}
+            className="absolute top-2 right-2 z-30 bg-red-600 text-white p-1.5 rounded-full shadow-lg hover:bg-red-800 transition-colors"
+          >
+            <Trash2 size={14} />
+          </button>
+        )}
+
         <div className="w-1/3 md:w-1/4 shrink-0 overflow-hidden rounded-xl relative aspect-[4/3] md:aspect-video shadow-inner">
            <img 
-            src={post.imageUrl} 
+            src={post.imageUrl || '/assets/logo.png'} 
             alt={post.title} 
             className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-700"
+            onError={(e) => { e.currentTarget.src = '/assets/logo.png'; }}
           />
-           <span className={`absolute top-0 right-0 ${categoryColor} text-white text-[10px] md:text-xs px-3 py-1 rounded-bl-xl font-bold shadow-md`}>
+           <span className={`absolute bottom-0 right-0 ${categoryColor} text-white text-[10px] md:text-xs px-3 py-1 rounded-tl-xl font-bold shadow-md`}>
             {post.category}
           </span>
         </div>
@@ -82,12 +106,23 @@ export const PostCard: React.FC<PostCardProps> = ({ post, layout = 'grid' }) => 
 
   // Grid Layout - Mobile Optimized
   return (
-    <div className="bg-white rounded-2xl shadow-sm overflow-hidden hover:shadow-xl hover:-translate-y-1.5 transition-all duration-300 border border-gray-100 flex flex-col h-full group">
-      <Link to={`/article/${post.id}`} className="relative aspect-video md:aspect-[16/10] overflow-hidden block">
+    <div className="bg-white rounded-2xl shadow-sm overflow-hidden hover:shadow-xl hover:-translate-y-1.5 transition-all duration-300 border border-gray-100 flex flex-col h-full group relative">
+      {/* כפתור מחיקה למנהל בלבד בגריד */}
+      {user?.role === 'admin' && (
+        <button 
+          onClick={handleDelete}
+          className="absolute top-4 left-4 z-30 bg-red-600 text-white p-2 rounded-full shadow-xl hover:bg-red-800 transition-colors"
+        >
+          <Trash2 size={18} />
+        </button>
+      )}
+
+      <Link to={`/article/${postId}`} className="relative aspect-video md:aspect-[16/10] overflow-hidden block">
         <img 
-          src={post.imageUrl} 
+          src={post.imageUrl || '/assets/logo.png'} 
           alt={post.title} 
           className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-700"
+          onError={(e) => { e.currentTarget.src = '/assets/logo.png'; }}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-60 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300" />
         
@@ -106,7 +141,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, layout = 'grid' }) => 
           <span>{post.views}</span>
         </div>
         
-        <Link to={`/article/${post.id}`} className="block mb-3">
+        <Link to={`/article/${postId}`} className="block mb-3">
           <h3 className="font-bold text-lg md:text-xl leading-tight text-gray-900 group-hover:text-red-700 transition-colors">
             {post.title}
           </h3>

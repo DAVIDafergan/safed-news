@@ -1,4 +1,3 @@
-// App.tsx
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { Header } from './components/Header';
@@ -12,13 +11,14 @@ import { Register } from './pages/Register';
 import { Contact } from './pages/Contact';
 import { AccessibilityWidget } from './components/AccessibilityWidget';
 import { Loader2 } from 'lucide-react';
-import { useApp } from './context/AppContext'; // ייבוא ה-Hook החדש
+import { useApp } from './context/AppContext'; 
 import { Category } from './types';
 
 const App: React.FC = () => {
-  // אנחנו שולפים את כל מה שצריך מה-Context המרכזי
+  // שליפת הנתונים מה-Context המרכזי
   const { user, posts, isLoading } = useApp();
 
+  // מסך טעינה עד שהנתונים מגיעים מהשרת ב-Railway
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 flex-col gap-4">
@@ -28,12 +28,14 @@ const App: React.FC = () => {
     );
   }
 
-  const tickerPosts = posts.filter(p => p.category === Category.NEWS);
+  // סינון מבזקים עבור הטיקר העליון
+  const tickerPosts = posts.filter(p => p.category === Category.NEWS || p.category === 'מבזקים');
 
   return (
     <div className="min-h-screen flex flex-col font-sans text-gray-900 bg-[#f8f9fa] relative">
       <Header onSearch={() => {}} user={user} />
       
+      {/* הצגת טיקר המבזקים רק במסכים רחבים */}
       <div className="hidden md:block">
         <NewsTicker posts={tickerPosts.slice(0, 10)} />
       </div>
@@ -41,12 +43,23 @@ const App: React.FC = () => {
       <main id="main-content" className="flex-1 w-full max-w-[100vw] overflow-x-hidden">
         <Routes>
           <Route path="/" element={<Home />} />
+          
+          {/* נתיב דינמי לכתבה בודדת - כאן מתבצע החיבור ל-ID */}
           <Route path="/article/:id" element={<Article />} />
+          
           <Route path="/category/:categoryName" element={<CategoryPage />} />
-          <Route path="/admin" element={user && user.role === 'admin' ? <AdminDashboard /> : <Login />} />
+          
+          {/* הגנת נתיב ניהול: רק אדמין יכול להיכנס */}
+          <Route 
+            path="/admin" 
+            element={user && (user.role === 'admin' || user.role === 'editor') ? <AdminDashboard /> : <Login />} 
+          />
+          
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/contact" element={<Contact />} />
+          
+          {/* ניתוב מחדש במקרה של דף לא נמצא */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
@@ -57,6 +70,7 @@ const App: React.FC = () => {
             <h3 className="text-white text-2xl font-bold mb-4">צפת בתנופה</h3>
             <p className="text-sm">האתר המוביל לחדשות וקהילה בצפת.</p>
           </div>
+          {/* ניתן להוסיף כאן עמודות נוספות לפוטר */}
         </div>
       </footer>
 
