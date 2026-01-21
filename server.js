@@ -19,12 +19,11 @@ app.use(helmet({
 }));
 
 app.use(cors());
-app.use(express.json()); // מאפשר קריאת JSON ב-Body
+app.use(express.json());
 
-// הגבלת כמות בקשות למניעת התקפות
 const limiter = rateLimit({
     windowMs: 15 * 60 * 1000, 
-    max: 500, // הגדלתי מעט כדי שלא תיחסם בזמן פיתוח
+    max: 500, 
     message: { msg: 'יותר מדי בקשות, נא לנסות שוב בעוד כמה דקות' }
 });
 app.use('/api/', limiter);
@@ -94,6 +93,7 @@ const authMiddleware = (req, res, next) => {
     if (!token) return res.status(401).json({ msg: 'גישה נדחתה, חסר טוקן' });
 
     try {
+        if (!process.env.JWT_SECRET) throw new Error("JWT_SECRET is missing");
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         req.user = decoded.user;
         next();
@@ -104,7 +104,6 @@ const authMiddleware = (req, res, next) => {
 
 // --- 5. נתיבי API (Routes) ---
 
-// --- פוסטים ---
 app.get('/api/posts', async (req, res) => {
     try {
         const page = parseInt(req.query.page) || 1;
@@ -119,33 +118,11 @@ app.get('/api/posts', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/api/posts/:id', async (req, res) => {
-    try {
-        const post = await Post.findByIdAndUpdate(req.params.id, { $inc: { views: 1 } }, { new: true });
-        if (!post) return res.status(404).json({ msg: 'הכתבה לא נמצאה' });
-        res.json(post);
-    } catch (err) { res.status(404).json({ error: "Invalid ID format" }); }
-});
-
-app.post('/api/posts', authMiddleware, async (req, res) => {
-    try {
-        const newPost = new Post(req.body);
-        await newPost.save();
-        res.json(newPost);
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.delete('/api/posts/:id', authMiddleware, async (req, res) => {
-    try {
-        await Post.findByIdAndDelete(req.params.id);
-        res.json({ success: true });
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// --- אימות משתמשים (Auth) ---
 app.post('/api/register', async (req, res) => {
     const { email, password, name } = req.body;
     try {
+        if (!process.env.JWT_SECRET) throw new Error("JWT_SECRET is missing in environment");
+
         let user = await User.findOne({ email: email.toLowerCase() });
         if (user) return res.status(400).json({ msg: 'המשתמש כבר קיים' });
 
@@ -155,45 +132,36 @@ app.post('/api/register', async (req, res) => {
         await user.save();
 
         const payload = { user: { id: user.id, role: user.role } };
-        jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' }, (err, token) => {
-            if (err) throw err;
-            res.json({ token, user: { id: user.id, name: user.name, role: user.role } });
-        });
+        const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' });
+        res.json({ token, user: { id: user.id, name: user.name, role: user.role } });
+        
     } catch (err) { 
-        console.error(err);
-        res.status(500).send('שגיאת שרת ברישום'); 
+        console.error("❌ שגיאת רישום:", err.message);
+        res.status(500).json({ error: 'שגיאת שרת ברישום', details: err.message }); 
     }
 });
 
 app.post('/api/login', async (req, res) => {
     const { email, password } = req.body;
-    console.log(`🔑 ניסיון התחברות עבור: ${email}`); // לוג לדיבאג
     try {
+        if (!process.env.JWT_SECRET) throw new Error("JWT_SECRET is missing in environment");
+
         let user = await User.findOne({ email: email.toLowerCase() });
-        if (!user) {
-            console.log("❌ משתמש לא נמצא במסד הנתונים");
-            return res.status(400).json({ msg: 'פרטים שגויים' });
-        }
+        if (!user) return res.status(400).json({ msg: 'פרטים שגויים' });
 
         const isMatch = await bcrypt.compare(password, user.password);
-        if (!isMatch) {
-            console.log("❌ סיסמה לא תואמת");
-            return res.status(400).json({ msg: 'פרטים שגויים' });
-        }
+        if (!isMatch) return res.status(400).json({ msg: 'פרטים שגויים' });
 
         const payload = { user: { id: user.id, role: user.role } };
-        jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' }, (err, token) => {
-            if (err) throw err;
-            console.log("✅ התחברות הצליחה");
-            res.json({ token, user: { id: user.id, name: user.name, role: user.role } });
-        });
+        const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' });
+        res.json({ token, user: { id: user.id, name: user.name, role: user.role } });
+
     } catch (err) { 
-        console.error(err);
-        res.status(500).send('שגיאת שרת בהתחברות'); 
+        console.error("❌ שגיאת התחברות:", err.message);
+        res.status(500).json({ error: 'שגיאת שרת בהתחברות', details: err.message }); 
     }
 });
 
-// --- שונות (פרסומות, התראות, קשר) ---
 app.get('/api/users', authMiddleware, async (req, res) => { res.json(await User.find().select('-password')); });
 app.get('/api/ads', async (req, res) => res.json(await Ad.find({ isActive: true })));
 app.post('/api/ads', authMiddleware, async (req, res) => res.json(await new Ad(req.body).save()));
