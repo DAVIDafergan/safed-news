@@ -56,7 +56,7 @@ const PostSchema = new mongoose.Schema({
     excerpt: String,
     author: String,
     tags: [String],
-    isFeatured: { type: Boolean, default: false },
+    isFeatured: { type: Boolean, default: false }, // שדה קריטי עבור הסליידר הראשי
     views: { type: Number, default: 0 },
     likes: { type: Number, default: 0 },
     date: { type: String, default: () => new Date().toLocaleDateString('he-IL') }
@@ -87,7 +87,8 @@ const SubscriberSchema = new mongoose.Schema({
 });
 const Subscriber = mongoose.model('Subscriber', SubscriberSchema);
 
-// --- 4. Middleware לאימות ---
+// --- 4. Middleware לאימות והרשאות ---
+
 const authMiddleware = (req, res, next) => {
     const token = req.header('x-auth-token');
     if (!token) return res.status(401).json({ msg: 'גישה נדחתה, חסר טוקן' });
@@ -102,15 +103,28 @@ const authMiddleware = (req, res, next) => {
     }
 };
 
+// Middleware חדש: מאפשר רק למנהלים לבצע פעולות כתיבה/מחיקה
+const adminMiddleware = (req, res, next) => {
+    if (req.user && (req.user.role === 'admin' || req.user.role === 'editor')) {
+        next();
+    } else {
+        res.status(403).json({ msg: 'גישה נדחתה: נדרשות הרשאות מנהל' });
+    }
+};
+
 // --- 5. נתיבי API (Routes) ---
 
+// --- פוסטים וכתבות ---
 app.get('/api/posts', async (req, res) => {
     try {
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 10;
         const category = req.query.category;
+        const featured = req.query.featured; // מאפשר למשוך רק פוסטים לסליידר
+        
         let query = {};
         if (category) query.category = category;
+        if (featured) query.isFeatured = (featured === 'true');
 
         const posts = await Post.find(query).sort({ _id: -1 }).skip((page - 1) * limit).limit(limit);
         const total = await Post.countDocuments(query);
@@ -118,11 +132,58 @@ app.get('/api/posts', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// יצירת פוסט - מנהל בלבד
+app.post('/api/posts', [authMiddleware, adminMiddleware], async (req, res) => {
+    try {
+        const newPost = new Post(req.body);
+        await newPost.save();
+        res.json(newPost);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// עדכון פוסט קיים (עבור עריכה או סימון כ-Featured)
+app.patch('/api/posts/:id', [authMiddleware, adminMiddleware], async (req, res) => {
+    try {
+        const updatedPost = await Post.findByIdAndUpdate(req.params.id, req.body, { new: true });
+        res.json(updatedPost);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete('/api/posts/:id', [authMiddleware, adminMiddleware], async (req, res) => {
+    try {
+        await Post.findByIdAndDelete(req.params.id);
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// --- מבזקים (Alerts) ---
+app.get('/api/alerts', async (req, res) => {
+    try {
+        const alerts = await Alert.find({ active: true }).sort({ _id: -1 });
+        res.json(alerts);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/alerts', [authMiddleware, adminMiddleware], async (req, res) => {
+    try {
+        const newAlert = new Alert(req.body);
+        await newAlert.save();
+        res.json(newAlert);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete('/api/alerts/:id', [authMiddleware, adminMiddleware], async (req, res) => {
+    try {
+        await Alert.findByIdAndDelete(req.params.id);
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// --- אימות ומשתמשים ---
 app.post('/api/register', async (req, res) => {
     const { email, password, name } = req.body;
     try {
         if (!process.env.JWT_SECRET) throw new Error("JWT_SECRET is missing in environment");
-
         let user = await User.findOne({ email: email.toLowerCase() });
         if (user) return res.status(400).json({ msg: 'המשתמש כבר קיים' });
 
@@ -134,7 +195,6 @@ app.post('/api/register', async (req, res) => {
         const payload = { user: { id: user.id, role: user.role } };
         const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' });
         res.json({ token, user: { id: user.id, name: user.name, role: user.role } });
-        
     } catch (err) { 
         console.error("❌ שגיאת רישום:", err.message);
         res.status(500).json({ error: 'שגיאת שרת ברישום', details: err.message }); 
@@ -145,7 +205,6 @@ app.post('/api/login', async (req, res) => {
     const { email, password } = req.body;
     try {
         if (!process.env.JWT_SECRET) throw new Error("JWT_SECRET is missing in environment");
-
         let user = await User.findOne({ email: email.toLowerCase() });
         if (!user) return res.status(400).json({ msg: 'פרטים שגויים' });
 
@@ -155,7 +214,6 @@ app.post('/api/login', async (req, res) => {
         const payload = { user: { id: user.id, role: user.role } };
         const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' });
         res.json({ token, user: { id: user.id, name: user.name, role: user.role } });
-
     } catch (err) { 
         console.error("❌ שגיאת התחברות:", err.message);
         res.status(500).json({ error: 'שגיאת שרת בהתחברות', details: err.message }); 
@@ -163,11 +221,10 @@ app.post('/api/login', async (req, res) => {
 });
 
 app.get('/api/users', authMiddleware, async (req, res) => { res.json(await User.find().select('-password')); });
+
+// --- פרסומות ומנויים ---
 app.get('/api/ads', async (req, res) => res.json(await Ad.find({ isActive: true })));
-app.post('/api/ads', authMiddleware, async (req, res) => res.json(await new Ad(req.body).save()));
-app.get('/api/alerts', async (req, res) => res.json(await Alert.find({ active: true }).sort({ _id: -1 })));
-app.get('/api/contact', authMiddleware, async (req, res) => res.json(await ContactMessage.find().sort({ _id: -1 })));
-app.post('/api/contact', async (req, res) => res.json(await new ContactMessage(req.body).save()));
+app.post('/api/ads', [authMiddleware, adminMiddleware], async (req, res) => res.json(await new Ad(req.body).save()));
 
 app.post('/api/newsletter/subscribe', async (req, res) => {
     try {
@@ -178,6 +235,9 @@ app.post('/api/newsletter/subscribe', async (req, res) => {
         res.json({ success: true });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
+
+app.get('/api/contact', authMiddleware, async (req, res) => res.json(await ContactMessage.find().sort({ _id: -1 })));
+app.post('/api/contact', async (req, res) => res.json(await new ContactMessage(req.body).save()));
 
 // --- 6. הגשת האתר (Frontend) ---
 const distPath = path.resolve(__dirname, 'dist');
