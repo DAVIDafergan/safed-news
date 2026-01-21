@@ -5,9 +5,14 @@ import { Post, Ad, User, Comment, ContactMessage, NewsletterSubscriber, Accessib
 const API_URL = '/api';
 
 export interface AppState {
-  posts: Post[]; ads: Ad[]; user: User | null; comments: Comment[];
-  registeredUsers: User[]; contactMessages: ContactMessage[];
-  newsletterSubscribers: NewsletterSubscriber[]; accessibility: AccessibilitySettings;
+  posts: Post[];
+  ads: Ad[];
+  user: User | null;
+  comments: Comment[];
+  registeredUsers: User[];
+  contactMessages: ContactMessage[];
+  newsletterSubscribers: NewsletterSubscriber[];
+  accessibility: AccessibilitySettings;
   isLoading: boolean;
   addPost: (post: any) => Promise<void>;
   deletePost: (id: string) => Promise<void>;
@@ -29,6 +34,7 @@ export interface AppState {
 }
 
 export const AppContext = createContext<AppState | undefined>(undefined);
+
 export const useApp = () => {
   const context = useContext(AppContext);
   if (!context) throw new Error('useApp must be used within AppProvider');
@@ -37,8 +43,13 @@ export const useApp = () => {
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(() => {
-    const saved = localStorage.getItem('safed_news_user');
-    return saved ? JSON.parse(saved) : null;
+    try {
+      const saved = localStorage.getItem('safed_news_user');
+      return (saved && saved !== "undefined") ? JSON.parse(saved) : null;
+    } catch (err) {
+      localStorage.removeItem('safed_news_user');
+      return null;
+    }
   });
 
   const [posts, setPosts] = useState<Post[]>([]);
@@ -50,44 +61,39 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     fontSize: 16, highContrast: false, readableFont: false, grayscale: false,
   });
 
+  // פונקציית עזר לקבלת Header עם טוקן
+  const getAuthConfig = () => {
+    const token = (user as any)?.token;
+    return token ? { headers: { 'x-auth-token': token } } : {};
+  };
+
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // 1. טעינת נתונים ציבוריים (פוסטים ופרסומות)
         const [pRes, aRes] = await Promise.allSettled([
           axios.get(`${API_URL}/posts`),
           axios.get(`${API_URL}/ads`)
         ]);
 
         if (pRes.status === 'fulfilled') {
-          const data = pRes.value.data;
-          // וידוא שהנתונים הם תמיד מערך כדי למנוע קריסה של ה-UI
-          setPosts(Array.isArray(data) ? data : (data.posts || []));
-        } else {
-          setPosts([]);
+          setPosts(Array.isArray(pRes.value.data) ? pRes.value.data : (pRes.value.data.posts || []));
         }
-
         if (aRes.status === 'fulfilled') {
           setAds(Array.isArray(aRes.value.data) ? aRes.value.data : []);
-        } else {
-          setAds([]);
         }
 
-        // 2. טעינת נתונים מוגנים (רק אם המשתמש מחובר)
         if (user && (user as any).token) {
-          const config = { headers: { 'x-auth-token': (user as any).token } };
+          const config = getAuthConfig();
           const [uRes, mRes] = await Promise.allSettled([
             axios.get(`${API_URL}/users`, config),
             axios.get(`${API_URL}/contact`, config)
           ]);
-
           if (uRes.status === 'fulfilled') setRegisteredUsers(uRes.value.data);
           if (mRes.status === 'fulfilled') setContactMessages(mRes.value.data);
         }
       } catch (err) {
-        console.error("Critical error fetching data:", err);
+        console.error("Fetch error:", err);
       } finally {
-        // השורה הקריטית: מבטיחה שהאתר ייצא ממצב טעינה ויציג את עצמו
         setIsLoading(false);
       }
     };
@@ -113,41 +119,61 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addPost = async (data) => {
-    if (!user) return;
-    const config = { headers: { 'x-auth-token': (user as any).token } };
-    const res = await axios.post(`${API_URL}/posts`, data, config);
+    const res = await axios.post(`${API_URL}/posts`, data, getAuthConfig());
     setPosts(prev => [res.data, ...prev]);
   };
 
   const deletePost = async (id) => {
-    if (!user) return;
-    const config = { headers: { 'x-auth-token': (user as any).token } };
-    await axios.delete(`${API_URL}/posts/${id}`, config);
+    await axios.delete(`${API_URL}/posts/${id}`, getAuthConfig());
     setPosts(prev => prev.filter(p => (p as any)._id !== id && (p as any).id !== id));
   };
 
-  const addContactMessage = async (msg) => { await axios.post(`${API_URL}/contact`, msg); };
+  const incrementViews = async (id: string) => {
+    try {
+      await axios.patch(`${API_URL}/posts/${id}/view`);
+      setPosts(prev => prev.map(p => 
+        ((p as any)._id === id || p.id === id) ? { ...p, views: (p.views || 0) + 1 } : p
+      ));
+    } catch (e) { console.error("Views update failed"); }
+  };
+
+  const createAd = async (ad: Ad) => {
+    const res = await axios.post(`${API_URL}/ads`, ad, getAuthConfig());
+    setAds(prev => [...prev, res.data]);
+  };
+
+  const updateAd = async (id: string, updates: Partial<Ad>) => {
+    const res = await axios.patch(`${API_URL}/ads/${id}`, updates, getAuthConfig());
+    setAds(prev => prev.map(a => ((a as any)._id === id || a.id === id) ? res.data : a));
+  };
+
+  const deleteAd = async (id: string) => {
+    await axios.delete(`${API_URL}/ads/${id}`, getAuthConfig());
+    setAds(prev => prev.filter(a => (a as any)._id !== id && (a as any).id !== id));
+  };
+
+  const addContactMessage = async (msg) => { 
+    await axios.post(`${API_URL}/contact`, msg); 
+  };
+
+  const subscribeToNewsletter = async (email: string) => {
+    try {
+      await axios.post(`${API_URL}/newsletter/subscribe`, { email });
+      return true;
+    } catch { return false; }
+  };
+
   const toggleAccessibilityOption = (opt) => setAccessibility(prev => ({ ...prev, [opt]: !prev[opt] }));
   const setFontSize = (s) => setAccessibility(prev => ({ ...prev, fontSize: s }));
   const resetAccessibility = () => setAccessibility({ fontSize: 16, highContrast: false, readableFont: false, grayscale: false });
-  
-  // פונקציות השלמה למניעת שגיאות טיפוסים
-  const incrementViews = () => {};
-  const updateAd = async () => {};
-  const createAd = async () => {};
-  const deleteAd = async () => {};
-  const addComment = async () => {};
-  const toggleLikeComment = async () => {};
-  const subscribeToNewsletter = async () => true;
-  const sendNewsletter = async () => {};
 
   return (
     <AppContext.Provider value={{
       posts, ads, user, comments: [], registeredUsers, contactMessages, 
       newsletterSubscribers: [], accessibility, isLoading,
       addPost, deletePost, incrementViews, updateAd, createAd, deleteAd,
-      login, logout, register: async () => true, addComment, toggleLikeComment,
-      addContactMessage, subscribeToNewsletter, sendNewsletter,
+      login, logout, register: async () => true, addComment: async () => {}, toggleLikeComment: async () => {},
+      addContactMessage, subscribeToNewsletter, sendNewsletter: async () => {},
       toggleAccessibilityOption, setFontSize, resetAccessibility
     }}>
       {children}
