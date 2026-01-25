@@ -1,13 +1,33 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { Category, Post, Ad, AdSlide } from '../types';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Layout, LogOut, Image as ImageIcon, Link as LinkIcon, Users, Mail, Trash2, Edit2, GripVertical, Check, X as XIcon, Save, Video, Bell, Upload, Camera } from 'lucide-react';
+import { Plus, Layout, LogOut, Image as ImageIcon, Link as LinkIcon, Users, Mail, Trash2, Edit2, GripVertical, Check, X as XIcon, Save, Video, Bell, Upload, Camera, RefreshCw } from 'lucide-react';
 
 export const AdminDashboard: React.FC = () => {
   const { user, logout, addPost, deletePost, ads, updateAd, registeredUsers, contactMessages, posts } = useApp();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'posts' | 'ads' | 'users' | 'messages' | 'alerts'>('posts');
+
+  // --- הווסף עבור הודעות (בעיה 1) ---
+  const [localMessages, setLocalMessages] = useState(contactMessages);
+  useEffect(() => {
+    if (activeTab === 'messages') {
+        const fetchMessages = async () => {
+            try {
+                const token = localStorage.getItem('x-auth-token');
+                const res = await fetch('/api/contact', {
+                    headers: { 'x-auth-token': token || '' }
+                });
+                const data = await res.json();
+                setLocalMessages(data);
+            } catch (err) {
+                console.error("שגיאה בטעינת הודעות:", err);
+            }
+        };
+        fetchMessages();
+    }
+  }, [activeTab]);
 
   // New Post Form State
   const [newPost, setNewPost] = useState<Partial<Post>>({
@@ -25,7 +45,9 @@ export const AdminDashboard: React.FC = () => {
   // Flash News State
   const [flashContent, setFlashContent] = useState('');
 
-  // Ad Editing State
+  // Ad Management State (משופר עבור בעיה 2)
+  const [isCreatingAd, setIsCreatingAd] = useState(false);
+  const [newAdData, setNewAdData] = useState({ title: '', area: 'sidebar' });
   const [editingAdId, setEditingAdId] = useState<string | null>(null);
   const [editingSlides, setEditingSlides] = useState<AdSlide[]>([]);
   const [draggedSlideIndex, setDraggedSlideIndex] = useState<number | null>(null);
@@ -106,22 +128,50 @@ export const AdminDashboard: React.FC = () => {
     
     addPost(flashPost);
     setFlashContent('');
+    alert('המבזק נוסף!');
   };
 
-  const handleDeleteFlash = (e: React.MouseEvent, id: string) => {
+  // תיקון מחיקה (בעיה 3) - שימוש ב-ID הנכון
+  const handleDeleteFlash = (e: React.MouseEvent, post: any) => {
     e.preventDefault();
     e.stopPropagation(); 
     
+    const idToDelete = post._id || post.id;
     if(window.confirm('למחוק את המבזק?')) {
-       deletePost(id);
+       deletePost(idToDelete);
     }
   };
 
   const flashPosts = posts.filter(p => p.category === Category.NEWS);
 
   // Ad Editor Functions
+  const handleCreateAd = async () => {
+    if (!newAdData.title) return alert('נא להזין שם לקמפיין');
+    
+    const newAd = {
+      title: newAdData.title,
+      area: newAdData.area,
+      isActive: true,
+      slides: [{ id: Date.now().toString(), imageUrl: 'https://via.placeholder.com/1200x200', linkUrl: '#' }]
+    };
+
+    try {
+      const token = localStorage.getItem('x-auth-token');
+      const res = await fetch('/api/ads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-auth-token': token || '' },
+        body: JSON.stringify(newAd)
+      });
+      if (res.ok) {
+        alert('באנר חדש נוצר בהצלחה!');
+        setIsCreatingAd(false);
+        window.location.reload(); // רענון לעדכון הרשימה מהשרת
+      }
+    } catch (err) { console.error(err); }
+  };
+
   const startEditingAd = (ad: Ad) => {
-    setEditingAdId(ad.id);
+    setEditingAdId(ad.id || (ad as any)._id);
     setEditingSlides([...ad.slides]); 
   };
 
@@ -135,6 +185,7 @@ export const AdminDashboard: React.FC = () => {
       updateAd(editingAdId, { slides: editingSlides });
       setEditingAdId(null);
       setEditingSlides([]);
+      alert('השינויים נשמרו!');
     }
   };
 
@@ -182,7 +233,7 @@ export const AdminDashboard: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-screen bg-gray-100 text-right" dir="rtl">
       <div className="bg-white shadow-sm border-b border-gray-200">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -271,15 +322,15 @@ export const AdminDashboard: React.FC = () => {
                     <div className="space-y-3 max-h-[500px] overflow-y-auto custom-scrollbar">
                         {flashPosts.length > 0 ? (
                             flashPosts.map(post => (
-                                <div key={post.id} className="flex justify-between items-start bg-gray-50 p-4 rounded-lg border border-gray-100 hover:bg-gray-100 transition">
+                                <div key={post.id || (post as any)._id} className="flex justify-between items-start bg-gray-50 p-4 rounded-lg border border-gray-100 hover:bg-gray-100 transition">
                                     <div>
                                         <p className="font-bold text-gray-900 mb-1">{post.title}</p>
                                         <span className="text-xs text-gray-500">{post.date}</span>
                                     </div>
                                     <button 
                                         type="button"
-                                        onClick={(e) => handleDeleteFlash(e, post.id)}
-                                        className="bg-white text-gray-400 hover:text-red-600 hover:bg-red-50 border border-gray-200 p-2 rounded-lg transition shadow-sm ml-2 cursor-pointer z-10"
+                                        onClick={(e) => handleDeleteFlash(e, post)}
+                                        className="bg-white text-gray-400 hover:text-red-600 hover:bg-red-50 border border-gray-200 p-2 rounded-lg transition shadow-sm mr-2 cursor-pointer z-10"
                                         title="מחק מבזק"
                                     >
                                         <Trash2 size={18} className="pointer-events-none" />
@@ -436,15 +487,62 @@ export const AdminDashboard: React.FC = () => {
           </div>
         )}
 
-        {/* Ads Manager Tab */}
+        {/* Ads Manager Tab (משופר לבעיה 2) */}
         {activeTab === 'ads' && (
           <div className="space-y-8 animate-fade-in">
              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                 <h2 className="text-2xl font-bold mb-6 text-gray-800">ניהול באנרים ופרסומות</h2>
+                 <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-2xl font-bold text-gray-800">ניהול באנרים ופרסומות</h2>
+                    <button 
+                        onClick={() => setIsCreatingAd(true)}
+                        className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-green-700 transition"
+                    >
+                        <Plus size={18} /> הוסף שטח פרסום חדש
+                    </button>
+                 </div>
+
+                 {/* טופס יצירת באנר חדש */}
+                 {isCreatingAd && (
+                     <div className="mb-8 p-6 bg-gray-50 rounded-xl border-2 border-green-100 animate-fade-in">
+                         <h3 className="font-bold text-lg mb-4 text-green-800">יצירת באנר חדש</h3>
+                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                             <div>
+                                 <label className="block text-sm font-bold mb-1">שם הקמפיין</label>
+                                 <input 
+                                    type="text" 
+                                    value={newAdData.title}
+                                    onChange={(e) => setNewAdData({...newAdData, title: e.target.value})}
+                                    className="w-full p-2 border rounded" 
+                                    placeholder="למשל: באנר פסח 2026"
+                                 />
+                             </div>
+                             <div>
+                                 <label className="block text-sm font-bold mb-1">מיקום (Area)</label>
+                                 <select 
+                                    value={newAdData.area}
+                                    onChange={(e) => setNewAdData({...newAdData, area: e.target.value})}
+                                    className="w-full p-2 border rounded"
+                                 >
+                                     <option value="leaderboard">ראש העמוד (Leaderboard)</option>
+                                     <option value="sidebar">סרגל צד (Sidebar)</option>
+                                     <option value="homepage_mid">אמצע דף הבית (Middle)</option>
+                                     <option value="sidebar_video">וידאו סיידבר</option>
+                                 </select>
+                             </div>
+                         </div>
+                         <div className="mt-4 p-3 bg-blue-50 text-blue-700 text-xs rounded border border-blue-100">
+                             <strong>הוראות מידה:</strong> ראש עמוד: 1200x150 | סיידבר: 350x350 | אמצע דף: 1200x200
+                         </div>
+                         <div className="mt-4 flex gap-2">
+                             <button onClick={handleCreateAd} className="bg-green-600 text-white px-4 py-2 rounded font-bold">צור באנר</button>
+                             <button onClick={() => setIsCreatingAd(false)} className="bg-gray-300 px-4 py-2 rounded">ביטול</button>
+                         </div>
+                     </div>
+                 )}
                  
                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {ads.map(ad => (
-                        <div key={ad.id} className="bg-gray-50 p-6 rounded-xl border border-gray-200 hover:shadow-md transition">
+                        <div key={ad.id || (ad as any)._id} className="bg-gray-50 p-6 rounded-xl border border-gray-200 hover:shadow-md transition">
                             <div className="flex justify-between items-start mb-4">
                                 <div>
                                     <h3 className="font-bold text-lg text-gray-900">{ad.title}</h3>
@@ -458,7 +556,7 @@ export const AdminDashboard: React.FC = () => {
                                     <img src={ad.slides[0].imageUrl} alt="preview" className="w-full h-full object-cover opacity-70" />
                                 )}
                                 <div className="absolute inset-0 flex items-center justify-center bg-black/30 text-white font-bold">
-                                    {ad.slides.length} שקופיות
+                                    {ad.slides.length} שקופיות (החלפה כל 3 שנ')
                                 </div>
                             </div>
 
@@ -466,7 +564,7 @@ export const AdminDashboard: React.FC = () => {
                                 onClick={() => startEditingAd(ad)}
                                 className="w-full bg-white border border-gray-300 text-gray-700 font-bold py-2 rounded-lg hover:bg-red-50 hover:text-red-700 hover:border-red-200 transition flex items-center justify-center gap-2"
                             >
-                                <Edit2 size={16} /> ערוך קמפיין
+                                <Edit2 size={16} /> ערוך קמפיין / הוסף שקופיות
                             </button>
                         </div>
                     ))}
@@ -477,10 +575,10 @@ export const AdminDashboard: React.FC = () => {
              {editingAdId && (
                  <div className="bg-white p-8 rounded-xl shadow-lg border-2 border-red-100 animate-fade-in scroll-mt-20" id="ad-editor">
                     <div className="flex justify-between items-center mb-6">
-                        <h3 className="text-2xl font-bold text-gray-900">עריכת קמפיין: {ads.find(a => a.id === editingAdId)?.title}</h3>
+                        <h3 className="text-2xl font-bold text-gray-900">עריכת קמפיין: {ads.find(a => (a.id === editingAdId || (a as any)._id === editingAdId))?.title}</h3>
                         <div className="flex gap-3">
                             <button onClick={addSlide} className="flex items-center gap-1 bg-gray-100 hover:bg-gray-200 text-gray-800 px-4 py-2 rounded-lg font-bold transition">
-                                <Plus size={16} /> הוסף שקופית
+                                <Plus size={16} /> הוסף שקופית נוספת
                             </button>
                             <button onClick={saveAdChanges} className="flex items-center gap-1 bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-bold transition shadow-md">
                                 <Save size={16} /> שמור שינויים
@@ -534,13 +632,14 @@ export const AdminDashboard: React.FC = () => {
                                         </div>
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-bold text-gray-500 mb-1">קישור לאתר המפרסם</label>
+                                        <label className="block text-xs font-bold text-gray-500 mb-1">קישור יעד (לחיצה)</label>
                                         <div className="relative">
                                             <LinkIcon size={14} className="absolute top-3 right-3 text-gray-400" />
                                             <input 
                                                 type="text" 
                                                 value={slide.linkUrl}
                                                 onChange={(e) => updateSlide(index, 'linkUrl', e.target.value)}
+                                                placeholder="https://example.com"
                                                 className="w-full pl-3 pr-9 py-2 bg-white border border-gray-300 rounded text-sm focus:ring-1 focus:ring-red-500 outline-none"
                                             />
                                         </div>
@@ -608,19 +707,22 @@ export const AdminDashboard: React.FC = () => {
           </div>
         )}
 
-        {/* Messages Tab */}
+        {/* Messages Tab (תיקון בעיה 1) */}
         {activeTab === 'messages' && (
           <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-200 animate-fade-in">
-             <h2 className="text-2xl font-bold mb-6 text-gray-800">הודעות מהאתר ({contactMessages.length})</h2>
+             <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-gray-800">הודעות מהאתר ({localMessages.length})</h2>
+                <button onClick={() => window.location.reload()} className="text-red-700 flex items-center gap-1 text-sm font-bold"><RefreshCw size={14}/>רענן</button>
+             </div>
              <div className="space-y-4">
-               {contactMessages.length > 0 ? (
-                 contactMessages.map(msg => (
-                   <div key={msg.id} className={`p-6 rounded-xl border ${msg.read ? 'bg-gray-50 border-gray-200' : 'bg-white border-red-100 shadow-sm border-r-4 border-r-red-500'}`}>
+               {localMessages.length > 0 ? (
+                 localMessages.map(msg => (
+                   <div key={msg.id || (msg as any)._id} className={`p-6 rounded-xl border ${msg.read ? 'bg-gray-50 border-gray-200' : 'bg-white border-red-100 shadow-sm border-r-4 border-r-red-500'}`}>
                       <div className="flex justify-between items-start mb-3">
                          <div>
                             <h3 className="font-bold text-lg text-gray-900">{msg.subject}</h3>
                             <div className="flex items-center gap-3 text-sm text-gray-500 mt-1">
-                               <span>{msg.name}</span>
+                               <span className="font-bold text-gray-800">{msg.name}</span>
                                <span>&bull;</span>
                                <span>{msg.email}</span>
                                <span>&bull;</span>
