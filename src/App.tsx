@@ -9,6 +9,7 @@ import { AdminDashboard } from './pages/AdminDashboard';
 import { Login } from './pages/Login';
 import { Register } from './pages/Register';
 import { Contact } from './pages/Contact';
+import { WeeklyPaper } from './pages/WeeklyPaper'; // <-- הוספתי את הייבוא הזה
 import { AccessibilityWidget } from './components/AccessibilityWidget';
 import { Loader2 } from 'lucide-react';
 import { useApp } from './context/AppContext'; 
@@ -48,6 +49,9 @@ const App: React.FC = () => {
           <Route path="/article/:id" element={<Article />} />
           
           <Route path="/category/:categoryName" element={<CategoryPage />} />
+
+          {/* נתיב לעיתון השבועי (חדש) */}
+          <Route path="/newspaper" element={<WeeklyPaper />} />
           
           {/* הגנת נתיב ניהול: רק אדמין יכול להיכנס */}
           <Route 
