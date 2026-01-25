@@ -6,7 +6,11 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken'); 
 const helmet = require('helmet'); 
 const rateLimit = require('express-rate-limit'); 
-const fs = require('fs'); // ייבוא ספריית מערכת הקבצים להזרקת מטא-דאטה
+const fs = require('fs'); 
+// --- תוספות עבור S3 ---
+const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
+const multer = require('multer');
+// ----------------------
 require('dotenv').config();
 
 const app = express();
@@ -20,7 +24,7 @@ app.use(helmet({
 }));
 
 app.use(cors());
-// הגדלת נפח הקבצים המותר להעלאה עבור באנרים כבדים ועיתונים
+// הגדלת נפח הקבצים המותר להעלאה (עדיין חשוב לגיבוי, למרות שה-S3 מטפל ברוב)
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
@@ -38,6 +42,21 @@ mongoose.connect(process.env.MONGO_URI)
         console.error('❌ שגיאת חיבור למנגו:', err);
         process.exit(1);
     });
+
+// --- הגדרות AWS S3 והעלאת קבצים (חדש) ---
+const s3 = new S3Client({
+    region: process.env.AWS_REGION,
+    credentials: {
+      accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    },
+});
+  
+// הגדרת Multer (שמירת קבצים בזיכרון השרת באופן זמני לפני שליחה ל-S3)
+const upload = multer({ 
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 50 * 1024 * 1024 } // מגבלה של 50MB לקובץ (מספיק ל-PDF ועיתונים)
+});
 
 // --- 3. תבניות נתונים (Models) ---
 
@@ -128,6 +147,36 @@ const adminMiddleware = (req, res, next) => {
 };
 
 // --- 5. נתיבי API (Routes) ---
+
+// --- נתיב העלאת קבצים ל-S3 (חדש) ---
+app.post('/api/upload', upload.single('file'), async (req, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ error: 'לא נשלח קובץ' });
+  
+      // יצירת שם קובץ ייחודי (באנגלית ומספרים בלבד למניעת תקלות)
+      const fileName = `uploads/${Date.now()}-${Math.round(Math.random() * 1E9)}`;
+      
+      const params = {
+        Bucket: process.env.AWS_BUCKET_NAME,
+        Key: fileName,
+        Body: req.file.buffer,
+        ContentType: req.file.mimetype,
+      };
+  
+      const command = new PutObjectCommand(params);
+      await s3.send(command);
+  
+      // יצירת הכתובת הציבורית
+      const fileUrl = `https://${process.env.AWS_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileName}`;
+      
+      console.log("✅ קובץ הועלה ל-S3:", fileUrl);
+      res.json({ url: fileUrl });
+  
+    } catch (err) {
+      console.error("❌ שגיאה בהעלאה ל-S3:", err);
+      res.status(500).json({ error: 'שגיאה בהעלאת הקובץ לשרת האחסון' });
+    }
+});
 
 // --- פוסטים וכתבות ---
 app.get('/api/posts', async (req, res) => {
@@ -361,7 +410,7 @@ app.delete('/api/ads/:id', [authMiddleware, adminMiddleware], async (req, res) =
 // --- מודל עיתון שבועי (Schema) ---
 const NewspaperSchema = new mongoose.Schema({
     title: { type: String, required: true }, // למשל: "פרשת נח תשפ"ו"
-    pdfUrl: { type: String, required: true }, // ה-Base64 של הקובץ
+    pdfUrl: { type: String, required: true }, // ה-URL של הקובץ (S3)
     date: { type: String, default: () => new Date().toLocaleDateString('he-IL') },
     createdAt: { type: Date, default: Date.now } // לסידור כרונולוגי
 });
