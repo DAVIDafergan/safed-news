@@ -10,12 +10,27 @@ export const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'posts' | 'ads' | 'users' | 'messages' | 'alerts' | 'newspaper'>('posts');
 
-  // --- פונקציית עזר למציאת הטוקן בכל מקום אפשרי ---
+  // --- פונקציית עזר חכמה למציאת הטוקן בכל מקום אפשרי ---
   const getToken = () => {
-    return localStorage.getItem('x-auth-token') || 
-           localStorage.getItem('token') || 
-           sessionStorage.getItem('x-auth-token') || 
-           sessionStorage.getItem('token');
+    // 1. בדיקה ישירה בשמות נפוצים
+    const token = localStorage.getItem('x-auth-token') || 
+                  localStorage.getItem('token') || 
+                  sessionStorage.getItem('x-auth-token') || 
+                  sessionStorage.getItem('token');
+    if (token) return token;
+
+    // 2. בדיקה בתוך אובייקט 'user' או 'auth' אם קיים (fallback)
+    try {
+        const userStr = localStorage.getItem('user');
+        if (userStr) {
+            const userObj = JSON.parse(userStr);
+            if (userObj.token) return userObj.token;
+        }
+    } catch (e) {
+        console.error("Error parsing token from user object", e);
+    }
+
+    return null;
   };
 
   // --- הודעות ---
@@ -58,7 +73,7 @@ export const AdminDashboard: React.FC = () => {
     category: Category.NEWS,
     excerpt: '',
     content: '',
-    // ברירת מחדל לוגו אם לא מעלים תמונה
+    // ברירת מחדל לוגו
     imageUrl: 'https://safed-news-media.s3.eu-north-1.amazonaws.com/uploads/logo.png',
     imageCredit: 'מערכת צפת בתנופה',
     tags: [],
@@ -70,6 +85,8 @@ export const AdminDashboard: React.FC = () => {
   const [flashContent, setFlashContent] = useState('');
 
   // Ad Management State
+  const [isCreatingAd, setIsCreatingAd] = useState(false);
+  const [newAdData, setNewAdData] = useState({ title: '', area: 'sidebar' });
   const [editingAdId, setEditingAdId] = useState<string | null>(null);
   const [editingSlides, setEditingSlides] = useState<AdSlide[]>([]);
   const [draggedSlideIndex, setDraggedSlideIndex] = useState<number | null>(null);
@@ -84,7 +101,7 @@ export const AdminDashboard: React.FC = () => {
     navigate('/');
   };
 
-  // --- פונקציית העלאת תמונות ל-S3 (מעודכן עם getToken) ---
+  // --- פונקציית העלאת תמונות ל-S3 (מעודכן עם getToken החכם) ---
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, callback: (url: string) => void) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -185,7 +202,7 @@ export const AdminDashboard: React.FC = () => {
 
   const flashPosts = posts.filter(p => p.category === Category.NEWS);
 
-  // --- העלאת עיתון ל-S3 (מעודכן עם getToken) ---
+  // --- העלאת עיתון ל-S3 (מעודכן עם getToken החכם) ---
   const handleUploadPaper = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!pdfFile || !paperTitle) {
@@ -230,24 +247,10 @@ export const AdminDashboard: React.FC = () => {
   };
 
   // --- פונקציות ניהול באנרים ---
-  // (הערה: פונקציית handleCreateAd הוסרה כי ביטלנו יצירה חדשה)
-
-  // כפתור מחיקה הוסר, הפונקציה נשארת למקרה עתידי אך לא בשימוש ב-UI
-  const handleDeleteAd = async (id: string) => {
-    /* if (!window.confirm('האם אתה בטוח שברצונך למחוק את כל שטח הפרסום הזה?')) return;
-    try {
-        const token = getToken();
-        const res = await fetch(`/api/ads/${id}`, {
-            method: 'DELETE',
-            headers: { 'x-auth-token': token || '' }
-        });
-        if (res.ok) {
-            alert('הבאנר נמחק בהצלחה');
-            window.location.reload();
-        }
-    } catch (err) { console.error(err); }
-    */
-  };
+  
+  // (הערה: פונקציות יצירה ומחיקה הוסרו לבקשתך - מצב קבוע)
+  const handleCreateAd = async () => {}; 
+  const handleDeleteAd = async (id: string) => {};
 
   const startEditingAd = (ad: Ad) => {
     setEditingAdId(ad.id || (ad as any)._id);
@@ -267,11 +270,12 @@ export const AdminDashboard: React.FC = () => {
   const saveAdChanges = async () => {
     if (editingAdId) {
       try {
-          // שימוש בפונקציית העזר שבודקת בכל המקומות
           const token = getToken();
           
+          // דיבאג למקרה שזה עדיין נכשל
           if (!token) {
-              alert('שגיאת חיבור: לא נמצא מזהה משתמש (Token). נא לבצע יציאה וכניסה מחדש.');
+              console.log("LocalStorage contents:", localStorage);
+              alert('שגיאת חיבור חמורה: הדפדפן לא מוצא את מפתח הכניסה. נסה להתחבר מחדש בדפדפן אחר או בחלון גלישה בסתר.');
               return;
           }
 
@@ -307,7 +311,7 @@ export const AdminDashboard: React.FC = () => {
   const addSlide = () => {
     const newSlide: AdSlide = {
       id: Date.now().toString(),
-      imageUrl: 'https://safed-news-media.s3.eu-north-1.amazonaws.com/uploads/logo.png', // ברירת מחדל לוגו
+      imageUrl: 'https://safed-news-media.s3.eu-north-1.amazonaws.com/uploads/logo.png', // ברירת מחדל
       linkUrl: '', 
       videoUrl: ''
     };
@@ -673,7 +677,7 @@ export const AdminDashboard: React.FC = () => {
              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
                  <div className="flex justify-between items-center mb-6">
                     <h2 className="text-2xl font-bold text-gray-800">ניהול באנרים ופרסומות</h2>
-                    {/* כפתור היצירה הוסר */}
+                    {/* כפתור היצירה הוסר כדי לשמור על מבנה קבוע */}
                  </div>
                  
                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -705,7 +709,7 @@ export const AdminDashboard: React.FC = () => {
                               >
                                   <Edit2 size={16} /> ערוך
                               </button>
-                              {/* כפתור המחיקה הוסר */}
+                              {/* כפתור המחיקה הוסר - באנרים קבועים בלבד */}
                             </div>
                         </div>
                     ))}
