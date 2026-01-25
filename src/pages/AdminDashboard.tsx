@@ -10,24 +10,32 @@ export const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'posts' | 'ads' | 'users' | 'messages' | 'alerts' | 'newspaper'>('posts');
 
-  // --- פונקציית עזר חכמה למציאת הטוקן בכל מקום אפשרי ---
+  // --- פונקציית עזר חכמה למציאת הטוקן (מותאמת ללוג שלך) ---
   const getToken = () => {
-    // 1. בדיקה ישירה בשמות נפוצים
-    const token = localStorage.getItem('x-auth-token') || 
-                  localStorage.getItem('token') || 
-                  sessionStorage.getItem('x-auth-token') || 
-                  sessionStorage.getItem('token');
-    if (token) return token;
+    // 1. בדיקה האם הטוקן שמור ישירות
+    const directToken = localStorage.getItem('x-auth-token') || localStorage.getItem('token');
+    if (directToken) return directToken;
 
-    // 2. בדיקה בתוך אובייקט 'user' או 'auth' אם קיים (fallback)
+    // 2. בדיקה בתוך safed_news_user (זה מה שראינו בלוג שלך!)
     try {
-        const userStr = localStorage.getItem('user');
-        if (userStr) {
-            const userObj = JSON.parse(userStr);
-            if (userObj.token) return userObj.token;
+        const appUser = localStorage.getItem('safed_news_user');
+        if (appUser) {
+            const parsed = JSON.parse(appUser);
+            if (parsed.token) return parsed.token;
         }
     } catch (e) {
-        console.error("Error parsing token from user object", e);
+        console.error("Error parsing safed_news_user", e);
+    }
+
+    // 3. בדיקה בתוך user כללי (לגיבוי)
+    try {
+        const genericUser = localStorage.getItem('user');
+        if (genericUser) {
+            const parsed = JSON.parse(genericUser);
+            if (parsed.token) return parsed.token;
+        }
+    } catch (e) {
+        console.error("Error parsing user object", e);
     }
 
     return null;
@@ -101,7 +109,7 @@ export const AdminDashboard: React.FC = () => {
     navigate('/');
   };
 
-  // --- פונקציית העלאת תמונות ל-S3 (מעודכן עם getToken החכם) ---
+  // --- פונקציית העלאת תמונות ל-S3 ---
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, callback: (url: string) => void) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -202,7 +210,7 @@ export const AdminDashboard: React.FC = () => {
 
   const flashPosts = posts.filter(p => p.category === Category.NEWS);
 
-  // --- העלאת עיתון ל-S3 (מעודכן עם getToken החכם) ---
+  // --- העלאת עיתון ל-S3 ---
   const handleUploadPaper = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!pdfFile || !paperTitle) {
@@ -272,10 +280,8 @@ export const AdminDashboard: React.FC = () => {
       try {
           const token = getToken();
           
-          // דיבאג למקרה שזה עדיין נכשל
           if (!token) {
-              console.log("LocalStorage contents:", localStorage);
-              alert('שגיאת חיבור חמורה: הדפדפן לא מוצא את מפתח הכניסה. נסה להתחבר מחדש בדפדפן אחר או בחלון גלישה בסתר.');
+              alert('שגיאת חיבור חמורה: המערכת לא מצליחה למצוא את פרטי המשתמש. נסה להתנתק ולהתחבר מחדש.');
               return;
           }
 
@@ -677,7 +683,7 @@ export const AdminDashboard: React.FC = () => {
              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
                  <div className="flex justify-between items-center mb-6">
                     <h2 className="text-2xl font-bold text-gray-800">ניהול באנרים ופרסומות</h2>
-                    {/* כפתור היצירה הוסר כדי לשמור על מבנה קבוע */}
+                    {/* כפתור היצירה הוסר */}
                  </div>
                  
                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -709,7 +715,7 @@ export const AdminDashboard: React.FC = () => {
                               >
                                   <Edit2 size={16} /> ערוך
                               </button>
-                              {/* כפתור המחיקה הוסר - באנרים קבועים בלבד */}
+                              {/* כפתור המחיקה הוסר */}
                             </div>
                         </div>
                     ))}
