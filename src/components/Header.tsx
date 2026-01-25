@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Menu, X, Search, User as UserIcon, LogOut, ChevronDown, UserPlus, Loader2 } from 'lucide-react';
-import { Category, User, Post } from '../types';
-import { useApp } from '../context/AppContext';
+import { Menu, X, Search, User as UserIcon, LogOut, ChevronDown, UserPlus, Loader2, FileText } from 'lucide-react';
+import { Category, User, Post } from '../../types';
+import { useApp } from '../../context/AppContext';
 
 interface HeaderProps {
   onSearch: (query: string) => void;
@@ -146,6 +146,18 @@ export const Header = ({ onSearch, user }: HeaderProps) => {
                     </Link>
                   </li>
                 ))}
+                
+                {/* קישור העיתון השבועי (חדש) */}
+                <li>
+                  <Link 
+                    to="/newspaper"
+                    className="relative py-2 hover:text-red-200 transition-colors group opacity-90 hover:opacity-100 whitespace-nowrap flex items-center gap-1"
+                  >
+                     <FileText size={16} /> העיתון השבועי
+                    <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-white transition-all duration-300 group-hover:w-full ease-out"></span>
+                  </Link>
+                </li>
+
                 <li className="relative group z-50">
                    <button className="flex items-center gap-1 hover:text-red-200 py-2 transition-colors opacity-90">
                      עוד <ChevronDown size={14} strokeWidth={3} />
@@ -355,8 +367,8 @@ export const Header = ({ onSearch, user }: HeaderProps) => {
                         onClick={() => handleSuggestionClick(post.id)}
                         className="w-full text-right px-4 py-3 hover:bg-red-50 transition-colors flex items-center gap-3 border-b border-gray-50 last:border-0"
                       >
-                         <Search size={14} className="text-gray-400" />
-                         <span className="text-sm font-medium text-gray-700 line-clamp-1">{post.title}</span>
+                          <Search size={14} className="text-gray-400" />
+                          <span className="text-sm font-medium text-gray-700 line-clamp-1">{post.title}</span>
                       </button>
                     ))}
                   </div>
@@ -376,7 +388,17 @@ export const Header = ({ onSearch, user }: HeaderProps) => {
                   <span className="text-gray-300 group-hover:text-red-400 transform group-hover:-translate-x-1 transition-transform">&larr;</span>
                 </Link>
               ))}
+              
               <div className="border-t border-gray-100 my-2"></div>
+
+              {/* קישור העיתון השבועי במובייל (חדש) */}
+              <Link 
+                  to="/newspaper"
+                  className="block px-5 py-3.5 rounded-xl text-gray-700 font-bold hover:bg-red-50 hover:text-red-700 transition-all flex items-center gap-2"
+                >
+                  <FileText size={18} /> העיתון השבועי
+              </Link>
+
               <Link 
                   to="/contact"
                   className="block px-5 py-3.5 rounded-xl text-gray-700 font-bold hover:bg-red-50 hover:text-red-700 transition-all"
@@ -387,8 +409,8 @@ export const Header = ({ onSearch, user }: HeaderProps) => {
           </div>
 
           <div className="p-6 border-t border-gray-100 bg-gray-50">
-             {user ? (
-               <div className="text-center">
+              {user ? (
+                <div className="text-center">
                   <p className="font-bold text-gray-800 mb-3">שלום, {user.name}</p>
                   {isAdmin && (
                     <Link to="/admin" className="block w-full py-2.5 bg-red-700 text-white rounded-lg mb-2 shadow-lg">
@@ -398,17 +420,17 @@ export const Header = ({ onSearch, user }: HeaderProps) => {
                   <button onClick={logout} className="block w-full py-2.5 bg-white border border-gray-300 rounded-lg text-gray-700">
                     יציאה
                   </button>
-               </div>
-             ) : (
-               <div className="flex gap-3">
-                 <Link to="/login" className="flex-1 py-3 bg-white border border-gray-200 text-gray-700 text-center rounded-xl font-bold">
-                   כניסה
-                 </Link>
-                 <Link to="/register" className="flex-1 py-3 bg-red-700 text-white text-center rounded-xl font-bold shadow-lg shadow-red-200">
-                   הרשמה
-                 </Link>
-               </div>
-             )}
+                </div>
+              ) : (
+                <div className="flex gap-3">
+                  <Link to="/login" className="flex-1 py-3 bg-white border border-gray-200 text-gray-700 text-center rounded-xl font-bold">
+                    כניסה
+                  </Link>
+                  <Link to="/register" className="flex-1 py-3 bg-red-700 text-white text-center rounded-xl font-bold shadow-lg shadow-red-200">
+                    הרשמה
+                  </Link>
+                </div>
+              )}
           </div>
         </div>
       </div>

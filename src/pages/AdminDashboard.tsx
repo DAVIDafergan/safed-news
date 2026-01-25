@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { Category, Post, Ad, AdSlide } from '../types';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Layout, LogOut, Image as ImageIcon, Link as LinkIcon, Users, Mail, Trash2, Edit2, GripVertical, Check, X as XIcon, Save, Video, Bell, Upload, Camera, RefreshCw } from 'lucide-react';
+import { api } from '../services/api'; // הוספתי את הייבוא הזה לטובת העלאת העיתון
+import { Plus, Layout, LogOut, Image as ImageIcon, Link as LinkIcon, Users, Mail, Trash2, Edit2, GripVertical, Check, X as XIcon, Save, Video, Bell, Upload, Camera, RefreshCw, FileText } from 'lucide-react';
 
 export const AdminDashboard: React.FC = () => {
   const { user, logout, addPost, deletePost, ads, updateAd, registeredUsers, contactMessages, posts } = useApp();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'posts' | 'ads' | 'users' | 'messages' | 'alerts'>('posts');
+  // עדכנתי את הטיפוס כדי לכלול את 'newspaper'
+  const [activeTab, setActiveTab] = useState<'posts' | 'ads' | 'users' | 'messages' | 'alerts' | 'newspaper'>('posts');
 
   // --- הודעות (בעיה 1 - סנכרון מול השרת) ---
   const [localMessages, setLocalMessages] = useState(contactMessages);
@@ -65,6 +67,11 @@ export const AdminDashboard: React.FC = () => {
   const [editingAdId, setEditingAdId] = useState<string | null>(null);
   const [editingSlides, setEditingSlides] = useState<AdSlide[]>([]);
   const [draggedSlideIndex, setDraggedSlideIndex] = useState<number | null>(null);
+
+  // --- Newspaper Management State (חדש) ---
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [paperTitle, setPaperTitle] = useState('');
+  const [isUploadingPaper, setIsUploadingPaper] = useState(false);
 
   const handleLogout = () => {
     logout();
@@ -155,6 +162,47 @@ export const AdminDashboard: React.FC = () => {
   };
 
   const flashPosts = posts.filter(p => p.category === Category.NEWS);
+
+  // --- Newspaper Upload Handler (חדש) ---
+  const handleUploadPaper = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pdfFile || !paperTitle) {
+        alert('נא למלא כותרת ולבחור קובץ PDF');
+        return;
+    }
+
+    setIsUploadingPaper(true);
+    const reader = new FileReader();
+    reader.readAsDataURL(pdfFile);
+    
+    reader.onload = async () => {
+        try {
+            if (typeof reader.result !== 'string') throw new Error('Failed to read file');
+            
+            await api.uploadNewspaper({
+                title: paperTitle,
+                pdfUrl: reader.result,
+                date: new Date().toLocaleDateString('he-IL')
+            });
+            
+            alert('העיתון הועלה בהצלחה! ניתן לצפות בו באתר.');
+            setPaperTitle('');
+            setPdfFile(null);
+            // איפוס ה-input file ויזואלית
+            (document.getElementById('pdf-upload') as HTMLInputElement).value = '';
+        } catch (err) {
+            console.error(err);
+            alert('שגיאה בהעלאת העיתון. וודא שהקובץ תקין ולא גדול מדי.');
+        } finally {
+            setIsUploadingPaper(false);
+        }
+    };
+    
+    reader.onerror = () => {
+        alert('שגיאה בקריאת הקובץ');
+        setIsUploadingPaper(false);
+    };
+  };
 
   // --- פונקציות ניהול באנרים (מעודכן לשרת) ---
   const handleCreateAd = async () => {
@@ -330,6 +378,13 @@ export const AdminDashboard: React.FC = () => {
           </button>
 
           <button
+            onClick={() => setActiveTab('newspaper')}
+            className={`px-6 py-3 rounded-lg font-bold flex items-center gap-2 transition ${activeTab === 'newspaper' ? 'bg-red-700 text-white shadow-lg' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+          >
+            <FileText size={18} /> העלאת עיתון
+          </button>
+
+          <button
             onClick={() => setActiveTab('ads')}
             className={`px-6 py-3 rounded-lg font-bold flex items-center gap-2 transition ${activeTab === 'ads' ? 'bg-red-700 text-white shadow-lg' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
           >
@@ -407,6 +462,69 @@ export const AdminDashboard: React.FC = () => {
               </div>
         )}
 
+        {/* --- NEWSPAPER TAB CONTENT (חדש) --- */}
+        {activeTab === 'newspaper' && (
+            <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-200 animate-fade-in max-w-2xl mx-auto">
+                 <h2 className="text-2xl font-bold mb-6 text-red-700 flex items-center gap-2">
+                    <FileText size={24} /> העלאת עיתון שבועי
+                </h2>
+                <div className="bg-blue-50 p-4 rounded-lg mb-6 border border-blue-100 text-sm text-blue-800">
+                    העיתון יעלה כקובץ PDF ויוצג בדף הייעודי באתר. המשתמשים יוכלו לדפדף בו בנוחות.
+                </div>
+                
+                <form onSubmit={handleUploadPaper} className="space-y-6">
+                     <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-2">שם הגיליון</label>
+                        <input
+                            type="text"
+                            value={paperTitle}
+                            onChange={(e) => setPaperTitle(e.target.value)}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 outline-none"
+                            placeholder="לדוגמה: גיליון פרשת נח - תשפ''ו"
+                            required
+                        />
+                    </div>
+
+                     <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-2">קובץ PDF</label>
+                        <div className="relative border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:bg-gray-50 transition cursor-pointer">
+                            <input 
+                                id="pdf-upload"
+                                type="file" 
+                                accept="application/pdf"
+                                onChange={(e) => setPdfFile(e.target.files ? e.target.files[0] : null)}
+                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                required
+                            />
+                            <div className="flex flex-col items-center gap-2 text-gray-500 pointer-events-none">
+                                <Upload size={40} className="text-red-500 mb-2" />
+                                {pdfFile ? (
+                                    <span className="text-green-600 font-bold text-lg">{pdfFile.name}</span>
+                                ) : (
+                                    <>
+                                        <span className="font-bold text-lg">גרור קובץ לכאן או לחץ לבחירה</span>
+                                        <span className="text-sm">קבצי PDF בלבד</span>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    <button
+                        type="submit"
+                        disabled={isUploadingPaper}
+                        className="w-full bg-red-700 text-white font-bold py-4 rounded-lg hover:bg-red-800 transition shadow-lg flex items-center justify-center gap-2 disabled:bg-gray-400"
+                    >
+                        {isUploadingPaper ? (
+                            <>מעלה עיתון... אנא המתן</>
+                        ) : (
+                            <><Check size={20} /> פרסם עיתון</>
+                        )}
+                    </button>
+                </form>
+            </div>
+        )}
+
         {activeTab === 'posts' && (
           <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-200 animate-fade-in">
             <h2 className="text-2xl font-bold mb-6 text-gray-800">יצירת כתבה חדשה</h2>
@@ -464,7 +582,7 @@ export const AdminDashboard: React.FC = () => {
                   <div>
                     <label className="block text-sm font-bold text-gray-700 mb-2">תמונה ראשית</label>
                     <div className="flex flex-col gap-2">
-                         <div className="relative">
+                          <div className="relative">
                             <ImageIcon size={18} className="absolute top-2.5 right-3 text-gray-400" />
                             <input
                                 type="text"

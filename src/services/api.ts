@@ -1,4 +1,4 @@
-import { Post, Ad, User, Comment, ContactMessage, NewsletterSubscriber, Category } from '../types';
+import { Post, Ad, User, Comment, ContactMessage, NewsletterSubscriber, Category, Newspaper } from '../types';
 import { INITIAL_POSTS, INITIAL_ADS, INITIAL_COMMENTS, INITIAL_USERS, INITIAL_MESSAGES, INITIAL_SUBSCRIBERS } from './mockData';
 
 // SET THIS TO TRUE WHEN YOU HAVE A REAL SERVER CONNECTED
@@ -26,13 +26,14 @@ export const api = {
   fetchInitialData: async () => {
     if (USE_SERVER) {
       try {
-        const [posts, ads, comments, users, messages, subscribers] = await Promise.all([
+        const [posts, ads, comments, users, messages, subscribers, newspapers] = await Promise.all([
           fetch(`${API_URL}/posts`).then(r => r.json()),
           fetch(`${API_URL}/ads`).then(r => r.json()),
           fetch(`${API_URL}/comments`).then(r => r.json()),
           fetch(`${API_URL}/users`).then(r => r.json()),
           fetch(`${API_URL}/messages`).then(r => r.json()).catch(() => []),
-          fetch(`${API_URL}/subscribers`).then(r => r.json()).catch(() => [])
+          fetch(`${API_URL}/subscribers`).then(r => r.json()).catch(() => []),
+          fetch(`${API_URL}/newspapers`).then(r => r.json()).catch(() => [])
         ]);
         return { 
           posts, 
@@ -40,7 +41,8 @@ export const api = {
           comments, 
           registeredUsers: users,
           contactMessages: messages,
-          newsletterSubscribers: subscribers
+          newsletterSubscribers: subscribers,
+          newspapers
         };
       } catch (error) {
         console.error("Server connection failed, falling back to local", error);
@@ -60,6 +62,7 @@ export const api = {
       registeredUsers: getStorage('zfat_users_db', INITIAL_USERS),
       contactMessages: getStorage('zfat_messages', INITIAL_MESSAGES),
       newsletterSubscribers: getStorage('zfat_subscribers', INITIAL_SUBSCRIBERS),
+      newspapers: getStorage('zfat_newspapers', []),
     };
   },
 
@@ -200,5 +203,38 @@ export const api = {
     };
     setStorage('zfat_subscribers', [...subs, newSub]);
     return true;
+  },
+
+  // --- NEWSPAPERS (העיתון השבועי) ---
+  getNewspapers: async () => {
+    if (USE_SERVER) {
+        const response = await fetch(`${API_URL}/newspapers`);
+        return response.json();
+    } else {
+        await delay(300);
+        return getStorage('zfat_newspapers', []);
+    }
+  },
+
+  uploadNewspaper: async (paper: Newspaper) => {
+    if (USE_SERVER) {
+        await fetch(`${API_URL}/newspapers`, { method: 'POST', body: JSON.stringify(paper) });
+    } else {
+        await delay(500);
+        const papers = getStorage('zfat_newspapers', []);
+        // @ts-ignore
+        setStorage('zfat_newspapers', [paper, ...papers]);
+    }
+  },
+
+  deleteNewspaper: async (id: string) => {
+    if (USE_SERVER) {
+        await fetch(`${API_URL}/newspapers/${id}`, { method: 'DELETE' });
+    } else {
+        await delay(300);
+        const papers = getStorage('zfat_newspapers', []);
+        // @ts-ignore
+        setStorage('zfat_newspapers', papers.filter(p => p.id !== id && p._id !== id));
+    }
   }
 };

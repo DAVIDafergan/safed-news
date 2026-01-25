@@ -20,7 +20,7 @@ app.use(helmet({
 }));
 
 app.use(cors());
-// הגדלת נפח הקבצים המותר להעלאה עבור באנרים כבדים
+// הגדלת נפח הקבצים המותר להעלאה עבור באנרים כבדים ועיתונים
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
@@ -354,6 +354,39 @@ app.patch('/api/ads/:id', [authMiddleware, adminMiddleware], async (req, res) =>
 app.delete('/api/ads/:id', [authMiddleware, adminMiddleware], async (req, res) => {
     try {
         await Ad.findByIdAndDelete(req.params.id);
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// --- מודל עיתון שבועי (Schema) ---
+const NewspaperSchema = new mongoose.Schema({
+    title: { type: String, required: true }, // למשל: "פרשת נח תשפ"ו"
+    pdfUrl: { type: String, required: true }, // ה-Base64 של הקובץ
+    date: { type: String, default: () => new Date().toLocaleDateString('he-IL') },
+    createdAt: { type: Date, default: Date.now } // לסידור כרונולוגי
+});
+const Newspaper = mongoose.model('Newspaper', NewspaperSchema);
+
+// --- נתיבי עיתון שבועי (Routes) - נוסף כעת ---
+app.get('/api/newspapers', async (req, res) => {
+    try {
+        // מחזיר את כל העיתונים ממוינים מהחדש לישן
+        const papers = await Newspaper.find().sort({ createdAt: -1 });
+        res.json(papers);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/newspapers', [authMiddleware, adminMiddleware], async (req, res) => {
+    try {
+        const newPaper = new Newspaper(req.body);
+        await newPaper.save();
+        res.json(newPaper);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete('/api/newspapers/:id', [authMiddleware, adminMiddleware], async (req, res) => {
+    try {
+        await Newspaper.findByIdAndDelete(req.params.id);
         res.json({ success: true });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
