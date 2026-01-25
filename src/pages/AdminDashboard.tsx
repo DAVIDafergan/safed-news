@@ -291,7 +291,7 @@ export const AdminDashboard: React.FC = () => {
     newSlides.splice(targetIndex, 0, draggedItem);
     
     setEditingSlides(newSlides);
-  0  setDraggedSlideIndex(null);
+   setDraggedSlideIndex(null);
   };
 
   return (
