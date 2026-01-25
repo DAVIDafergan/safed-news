@@ -47,7 +47,7 @@ export const AdminDashboard: React.FC = () => {
   const [newPost, setNewPost] = useState<Partial<Post>>({
     title: '',
     category: Category.NEWS,
-    excerpt: '',
+   excerpt: '',
     content: '',
     imageUrl: '',
     imageCredit: '',
@@ -291,7 +291,7 @@ export const AdminDashboard: React.FC = () => {
     newSlides.splice(targetIndex, 0, draggedItem);
     
     setEditingSlides(newSlides);
-    setDraggedSlideIndex(null);
+  0  setDraggedSlideIndex(null);
   };
 
   return (
@@ -502,7 +502,7 @@ export const AdminDashboard: React.FC = () => {
                                 value={newPost.imageCredit || ''}
                                 onChange={(e) => setNewPost({...newPost, imageCredit: e.target.value})}
                                 className="w-full pl-4 pr-10 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-red-500 outline-none"
-                               placeholder="לדוגמה: דוברות העירייה / פלוני אלמוני"
+                                placeholder="לדוגמה: דוברות העירייה / פלוני אלמוני"
                             />
                         </div>
                       </div>
@@ -562,7 +562,7 @@ export const AdminDashboard: React.FC = () => {
                                 </div>
                                 <div className={`w-3 h-3 rounded-full ${ad.isActive ? 'bg-green-500' : 'bg-red-500'}`} />
                             </div>
-                            
+                                0
                             <div className="aspect-video bg-gray-200 rounded-lg mb-4 overflow-hidden relative">
                                 {ad.slides.length > 0 && (
                                     <img src={ad.slides[0].imageUrl} alt="preview" className="w-full h-full object-cover opacity-70" />
@@ -651,7 +651,7 @@ export const AdminDashboard: React.FC = () => {
                                         <label className="block text-xs font-bold text-gray-500 mb-1">קישור יעד (לאן השקופית תוביל?)</label>
                                         <div className="relative">
                                             <LinkIcon size={14} className="absolute top-3 right-3 text-gray-400" />
-              0                             <input 
+  0                                        <input 
                                                 type="text" 
                                                 value={slide.linkUrl}
                                                 onChange={(e) => updateSlide(index, 'linkUrl', e.target.value)}
@@ -668,7 +668,7 @@ export const AdminDashboard: React.FC = () => {
                                                 <input 
                                                     type="text" 
                                                     value={slide.videoUrl || ''}
-                                                    onChange={(e) => updateSlide(index, 'videoUrl', e.target.value)}
+          0                                        onChange={(e) => updateSlide(index, 'videoUrl', e.target.value)}
                                                     placeholder="https://...mp4"
                                                     className="w-full pl-3 pr-9 py-2 bg-white border border-gray-300 rounded text-sm focus:ring-1 focus:ring-red-500 outline-none"
                                                 />
@@ -705,17 +705,17 @@ export const AdminDashboard: React.FC = () => {
                <table className="w-full text-right">
                  <thead>
                    <tr className="bg-gray-50 text-gray-600 text-sm uppercase tracking-wider border-b border-gray-200">
-                     <th className="py-3 px-4 font-bold">שם</th>
-                     <th className="py-3 px-4 font-bold">אימייל</th>
-                     <th className="py-3 px-4 font-bold">תפקיד</th>
-                     <th className="py-3 px-4 font-bold">תאריך הצטרפות</th>
+                   <th className="py-3 px-4 font-bold">שם</th>
+                   <th className="py-3 px-4 font-bold">אימייל</th>
+                   <th className="py-3 px-4 font-bold">תפקיד</th>
+                   <th className="py-3 px-4 font-bold">תאריך הצטרפות</th>
                    </tr>
                  </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-gray-100">
                    {registeredUsers.map(u => (
                      <tr key={u.id} className="hover:bg-gray-50 transition">
                        <td className="py-3 px-4 font-medium text-gray-900">{u.name}</td>
-  0                     <td className="py-3 px-4 text-gray-600">{u.email}</td>
+  0                     <td className="py-3 px-4 text-gray-600">{u.email}</td>
                        <td className="py-3 px-4">
                          <span className={`inline-block px-2 py-0.5 rounded text-xs font-bold ${u.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-blue-50 text-blue-700'}`}>
                            {u.role === 'admin' ? 'מנהל' : 'משתמש'}
@@ -727,7 +727,7 @@ export const AdminDashboard: React.FC = () => {
                  </tbody>
                </table>
              </div>
-  0       </div>
+  0       </div>
         )}
 
         {/* Messages Tab */}
@@ -758,7 +758,7 @@ export const AdminDashboard: React.FC = () => {
                                <span>{msg.phone || 'אין טלפון'}</span>
                             </div>
                          </div>
-                        <span className="text-xs text-gray-400 bg-white px-2 py-1 rounded border border-gray-100">{msg.date}</span>
+                        <span className="text-xs text-gray-400 bg-white px-2 py-1 rounded border border-gray-100">{msg.date}</span>
                       </div>
                       <p className="text-gray-700 bg-gray-50/50 p-4 rounded-lg text-sm leading-relaxed whitespace-pre-wrap">
                         {msg.message}
