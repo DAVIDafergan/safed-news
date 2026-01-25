@@ -164,7 +164,6 @@ export const AdminDashboard: React.FC = () => {
       title: newAdData.title,
       area: newAdData.area,
       isActive: true,
-      // יצירת שקופית ראשונה כברירת מחדל עם קישור ריק
       slides: [{ id: Date.now().toString(), imageUrl: 'https://via.placeholder.com/1200x200', linkUrl: '' }]
     };
 
@@ -201,7 +200,6 @@ export const AdminDashboard: React.FC = () => {
   const startEditingAd = (ad: Ad) => {
     setEditingAdId(ad.id || (ad as any)._id);
     setEditingSlides([...ad.slides]); 
-    // גלילה אוטומטית לעורך
     setTimeout(() => {
         document.getElementById('ad-editor')?.scrollIntoView({ behavior: 'smooth' });
     }, 100);
@@ -242,7 +240,7 @@ export const AdminDashboard: React.FC = () => {
     const newSlide: AdSlide = {
       id: Date.now().toString(),
       imageUrl: 'https://via.placeholder.com/800x200',
-      linkUrl: '', // כל שקופית מקבלת קישור ייחודי
+      linkUrl: '', 
       videoUrl: ''
     };
     setEditingSlides([...editingSlides, newSlide]);
@@ -531,65 +529,18 @@ export const AdminDashboard: React.FC = () => {
           </div>
         )}
 
-        {/* --- ADS MANAGER TAB --- */}
+        {/* --- ADS MANAGER TAB (FIXED AREAS) --- */}
         {activeTab === 'ads' && (
           <div className="space-y-8 animate-fade-in">
              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                 <div className="flex justify-between items-center mb-6">
+                 <div className="mb-6">
                     <h2 className="text-2xl font-bold text-gray-800">ניהול באנרים ופרסומות</h2>
-                    <button 
-                        onClick={() => setIsCreatingAd(true)}
-                        className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-green-700 transition"
-                    >
-                        <Plus size={18} /> הוסף שטח פרסום חדש
-                    </button>
+                    <p className="text-sm text-gray-500 mt-1">בחר שטח פרסום קיים לעדכון התמונות, הסרטונים והקישורים שלו.</p>
                  </div>
-
-                 {isCreatingAd && (
-                     <div className="mb-8 p-6 bg-gray-50 rounded-xl border-2 border-green-100 animate-fade-in">
-                         <h3 className="font-bold text-lg mb-4 text-green-800">יצירת באנר חדש</h3>
-                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                             <div>
-                                 <label className="block text-sm font-bold mb-1">שם הקמפיין</label>
-                                 <input 
-                                    type="text" 
-                                    value={newAdData.title}
-                                    onChange={(e) => setNewAdData({...newAdData, title: e.target.value})}
-                                    className="w-full p-2 border rounded" 
-                                    placeholder="למשל: באנר פסח 2026"
-                                 />
-                             </div>
-                             <div>
-                                 <label className="block text-sm font-bold mb-1">מיקום (Area)</label>
-                                 <select 
-                                    value={newAdData.area}
-                                    onChange={(e) => setNewAdData({...newAdData, area: e.target.value})}
-                                    className="w-full p-2 border rounded"
-                                 >
-                                     <option value="leaderboard">ראש העמוד (Leaderboard)</option>
-                                     <option value="sidebar">סרגל צד (Sidebar)</option>
-                                     <option value="homepage_mid">אמצע דף הבית (Middle)</option>
-                                     <option value="sidebar_video">וידאו סיידבר</option>
-                                 </select>
-                             </div>
-                         </div>
-                         <div className="mt-4 flex gap-2">
-                             <button onClick={handleCreateAd} className="bg-green-600 text-white px-4 py-2 rounded font-bold">צור באנר</button>
-                             <button onClick={() => setIsCreatingAd(false)} className="bg-gray-300 px-4 py-2 rounded">ביטול</button>
-                         </div>
-                     </div>
-                 )}
                  
                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {ads.map(ad => (
                         <div key={ad.id || (ad as any)._id} className="bg-gray-50 p-6 rounded-xl border border-gray-200 hover:shadow-md transition relative group">
-                            <button 
-                                onClick={() => handleDeleteAd(ad.id || (ad as any)._id)}
-                                className="absolute top-2 left-2 bg-white text-red-500 p-2 rounded-full shadow-sm opacity-0 group-hover:opacity-100 transition-opacity z-20"
-                                title="מחק את כל שטח הפרסום"
-                            >
-                                <Trash2 size={16} />
-                            </button>
                             <div className="flex justify-between items-start mb-4">
                                 <div>
                                     <h3 className="font-bold text-lg text-gray-900">{ad.title}</h3>
@@ -808,7 +759,6 @@ export const AdminDashboard: React.FC = () => {
              </div>
           </div>
         )}
-
       </div>
     </div>
   );
