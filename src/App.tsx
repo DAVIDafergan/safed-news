@@ -76,12 +76,12 @@ const App: React.FC = () => {
 
       <AccessibilityWidget />
 
-      {/* כפתור וואטסאפ קבוע */}
+      {/* כפתור וואטסאפ קבוע - צד ימין */}
       <a
         href="https://api.whatsapp.com/send?phone=972525981770&text=היי+אשמח+לעזרה+בנוגע+לאתר+צפת+בתנופה"
         target="_blank"
         rel="noopener noreferrer"
-        className="fixed bottom-5 left-5 z-50 flex items-center justify-center w-16 h-16 bg-[#25D366] rounded-full shadow-2xl hover:bg-[#20ba5a] transition-all duration-300 hover:scale-110"
+        className="fixed bottom-5 right-5 z-50 flex items-center justify-center w-16 h-16 bg-[#25D366] rounded-full shadow-2xl hover:bg-[#20ba5a] transition-all duration-300 hover:scale-110"
         aria-label="צרו קשר בוואטסאפ"
       >
         <svg 
