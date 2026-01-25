@@ -10,12 +10,20 @@ export const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'posts' | 'ads' | 'users' | 'messages' | 'alerts' | 'newspaper'>('posts');
 
+  // --- פונקציית עזר למציאת הטוקן בכל מקום אפשרי ---
+  const getToken = () => {
+    return localStorage.getItem('x-auth-token') || 
+           localStorage.getItem('token') || 
+           sessionStorage.getItem('x-auth-token') || 
+           sessionStorage.getItem('token');
+  };
+
   // --- הודעות ---
   const [localMessages, setLocalMessages] = useState(contactMessages);
   
   const fetchMessages = async () => {
       try {
-          const token = localStorage.getItem('x-auth-token');
+          const token = getToken();
           const res = await fetch('/api/contact', {
               headers: { 'x-auth-token': token || '' }
           });
@@ -35,7 +43,7 @@ export const AdminDashboard: React.FC = () => {
   const handleDeleteMessage = async (id: string) => {
     if (!window.confirm('למחוק את ההודעה לצמיתות?')) return;
     try {
-        const token = localStorage.getItem('x-auth-token');
+        const token = getToken();
         await fetch(`/api/contact/${id}`, {
             method: 'DELETE',
             headers: { 'x-auth-token': token || '' }
@@ -50,8 +58,9 @@ export const AdminDashboard: React.FC = () => {
     category: Category.NEWS,
     excerpt: '',
     content: '',
-    imageUrl: '',
-    imageCredit: '',
+    // ברירת מחדל לוגו אם לא מעלים תמונה
+    imageUrl: 'https://safed-news-media.s3.eu-north-1.amazonaws.com/uploads/logo.png',
+    imageCredit: 'מערכת צפת בתנופה',
     tags: [],
     isFeatured: false,
   });
@@ -61,8 +70,6 @@ export const AdminDashboard: React.FC = () => {
   const [flashContent, setFlashContent] = useState('');
 
   // Ad Management State
-  const [isCreatingAd, setIsCreatingAd] = useState(false);
-  const [newAdData, setNewAdData] = useState({ title: '', area: 'sidebar' });
   const [editingAdId, setEditingAdId] = useState<string | null>(null);
   const [editingSlides, setEditingSlides] = useState<AdSlide[]>([]);
   const [draggedSlideIndex, setDraggedSlideIndex] = useState<number | null>(null);
@@ -77,17 +84,15 @@ export const AdminDashboard: React.FC = () => {
     navigate('/');
   };
 
-  // --- פונקציית העלאת תמונות ל-S3 (מעודכן) ---
+  // --- פונקציית העלאת תמונות ל-S3 (מעודכן עם getToken) ---
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, callback: (url: string) => void) => {
     const file = e.target.files?.[0];
     if (file) {
-      // יצירת טופס לשליחת הקובץ
       const formData = new FormData();
       formData.append('file', file);
 
       try {
-          const token = localStorage.getItem('x-auth-token');
-          // שליחה לשרת שלנו -> שמעביר ל-S3
+          const token = getToken();
           const res = await fetch('/api/upload', {
               method: 'POST',
               headers: { 
@@ -99,7 +104,6 @@ export const AdminDashboard: React.FC = () => {
           if (!res.ok) throw new Error('Upload failed');
 
           const data = await res.json();
-          // השרת מחזיר { url: "https://...s3..." }
           callback(data.url);
           
       } catch (err) {
@@ -121,8 +125,8 @@ export const AdminDashboard: React.FC = () => {
       category: newPost.category as Category,
       author: user?.name || 'Admin',
       date: new Date().toISOString().split('T')[0],
-      imageUrl: newPost.imageUrl || 'https://picsum.photos/800/600',
-      imageCredit: newPost.imageCredit || 'רשתות חברתיות',
+      imageUrl: newPost.imageUrl || 'https://safed-news-media.s3.eu-north-1.amazonaws.com/uploads/logo.png',
+      imageCredit: newPost.imageCredit || 'מערכת צפת בתנופה',
       tags: tagsInput.split(',').map(t => t.trim()).filter(Boolean),
       isFeatured: newPost.isFeatured || false,
       views: 0,
@@ -137,8 +141,8 @@ export const AdminDashboard: React.FC = () => {
       category: Category.NEWS,
       excerpt: '',
       content: '',
-      imageUrl: '',
-      imageCredit: '',
+      imageUrl: 'https://safed-news-media.s3.eu-north-1.amazonaws.com/uploads/logo.png',
+      imageCredit: 'מערכת צפת בתנופה',
       tags: [],
       isFeatured: false,
     });
@@ -181,7 +185,7 @@ export const AdminDashboard: React.FC = () => {
 
   const flashPosts = posts.filter(p => p.category === Category.NEWS);
 
-  // --- העלאת עיתון ל-S3 (מעודכן) ---
+  // --- העלאת עיתון ל-S3 (מעודכן עם getToken) ---
   const handleUploadPaper = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!pdfFile || !paperTitle) {
@@ -192,13 +196,11 @@ export const AdminDashboard: React.FC = () => {
     setIsUploadingPaper(true);
 
     try {
-        // 1. הכנת הקובץ לשליחה
         const formData = new FormData();
         formData.append('file', pdfFile);
 
-        const token = localStorage.getItem('x-auth-token');
+        const token = getToken();
 
-        // 2. העלאה ל-S3 דרך השרת
         const uploadRes = await fetch('/api/upload', {
             method: 'POST',
             headers: { 'x-auth-token': token || '' },
@@ -208,10 +210,9 @@ export const AdminDashboard: React.FC = () => {
         if (!uploadRes.ok) throw new Error('PDF upload failed');
         const uploadData = await uploadRes.json();
         
-        // 3. שמירת רשומת העיתון עם הקישור ל-S3
         await api.uploadNewspaper({
             title: paperTitle,
-            pdfUrl: uploadData.url, // שימוש ב-URL שחזר מ-S3
+            pdfUrl: uploadData.url,
             date: new Date().toLocaleDateString('he-IL')
         });
         
@@ -229,36 +230,13 @@ export const AdminDashboard: React.FC = () => {
   };
 
   // --- פונקציות ניהול באנרים ---
-  const handleCreateAd = async () => {
-    if (!newAdData.title) return alert('נא להזין שם לקמפיין');
-    
-    const newAd = {
-      title: newAdData.title,
-      area: newAdData.area,
-      isActive: true,
-      // יצירת שקופית ראשונה כברירת מחדל עם קישור ריק
-      slides: [{ id: Date.now().toString(), imageUrl: 'https://via.placeholder.com/1200x200', linkUrl: '' }]
-    };
+  // (הערה: פונקציית handleCreateAd הוסרה כי ביטלנו יצירה חדשה)
 
-    try {
-      const token = localStorage.getItem('x-auth-token');
-      const res = await fetch('/api/ads', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-auth-token': token || '' },
-        body: JSON.stringify(newAd)
-      });
-      if (res.ok) {
-        alert('באנר חדש נוצר בהצלחה!');
-        setIsCreatingAd(false);
-        window.location.reload(); 
-      }
-    } catch (err) { console.error(err); }
-  };
-
+  // כפתור מחיקה הוסר, הפונקציה נשארת למקרה עתידי אך לא בשימוש ב-UI
   const handleDeleteAd = async (id: string) => {
-    if (!window.confirm('האם אתה בטוח שברצונך למחוק את כל שטח הפרסום הזה?')) return;
+    /* if (!window.confirm('האם אתה בטוח שברצונך למחוק את כל שטח הפרסום הזה?')) return;
     try {
-        const token = localStorage.getItem('x-auth-token');
+        const token = getToken();
         const res = await fetch(`/api/ads/${id}`, {
             method: 'DELETE',
             headers: { 'x-auth-token': token || '' }
@@ -268,6 +246,7 @@ export const AdminDashboard: React.FC = () => {
             window.location.reload();
         }
     } catch (err) { console.error(err); }
+    */
   };
 
   const startEditingAd = (ad: Ad) => {
@@ -284,15 +263,15 @@ export const AdminDashboard: React.FC = () => {
     setEditingSlides([]);
   };
 
-  // --- פונקציית שמירה מעודכנת עם תיקון טוקן ---
+  // --- שמירת שינויים בבאנר (עם חיפוש טוקן חכם) ---
   const saveAdChanges = async () => {
     if (editingAdId) {
       try {
-          // חפש את הטוקן בשני המקומות האפשריים
-          const token = localStorage.getItem('x-auth-token') || localStorage.getItem('token');
+          // שימוש בפונקציית העזר שבודקת בכל המקומות
+          const token = getToken();
           
           if (!token) {
-              alert('אינך מחובר או שהחיבור פג. נא להתחבר מחדש.');
+              alert('שגיאת חיבור: לא נמצא מזהה משתמש (Token). נא לבצע יציאה וכניסה מחדש.');
               return;
           }
 
@@ -306,7 +285,7 @@ export const AdminDashboard: React.FC = () => {
           });
           
           if (response.status === 401) {
-              alert('שגיאת הרשאה (401): נא לצאת ולהיכנס מחדש למערכת.');
+              alert('שגיאת הרשאה (401): החיבור שלך פג תוקף. נא לצאת ולהיכנס מחדש.');
               return;
           }
 
@@ -328,8 +307,8 @@ export const AdminDashboard: React.FC = () => {
   const addSlide = () => {
     const newSlide: AdSlide = {
       id: Date.now().toString(),
-      imageUrl: 'https://via.placeholder.com/800x200',
-      linkUrl: '', // כל שקופית מקבלת קישור ייחודי
+      imageUrl: 'https://safed-news-media.s3.eu-north-1.amazonaws.com/uploads/logo.png', // ברירת מחדל לוגו
+      linkUrl: '', 
       videoUrl: ''
     };
     setEditingSlides([...editingSlides, newSlide]);
@@ -694,10 +673,8 @@ export const AdminDashboard: React.FC = () => {
              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
                  <div className="flex justify-between items-center mb-6">
                     <h2 className="text-2xl font-bold text-gray-800">ניהול באנרים ופרסומות</h2>
-                    {/* כפתור יצירת באנר הוסר כדי לשמור על תבנית קבועה */}
+                    {/* כפתור היצירה הוסר */}
                  </div>
-
-                 {/* טופס יצירה הוסר מכיוון שאין אפשרות ליצור חדשים */}
                  
                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {ads.map(ad => (
@@ -728,7 +705,7 @@ export const AdminDashboard: React.FC = () => {
                               >
                                   <Edit2 size={16} /> ערוך
                               </button>
-                              {/* כפתור המחיקה הוסר - באנרים קבועים בלבד */}
+                              {/* כפתור המחיקה הוסר */}
                             </div>
                         </div>
                     ))}
