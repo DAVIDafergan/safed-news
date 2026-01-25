@@ -20,7 +20,9 @@ app.use(helmet({
 }));
 
 app.use(cors());
-app.use(express.json());
+// הגדלת נפח הקבצים המותר להעלאה עבור באנרים כבדים
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 const limiter = rateLimit({
     windowMs: 15 * 60 * 1000, 
@@ -299,7 +301,7 @@ app.post('/api/login', async (req, res) => {
 
 app.get('/api/users', authMiddleware, async (req, res) => { res.json(await User.find().select('-password')); });
 
-// --- פרסומות ומנויים ---
+// --- פרסומות (Ads) ---
 app.get('/api/ads', async (req, res) => res.json(await Ad.find({ isActive: true })));
 
 app.post('/api/ads', [authMiddleware, adminMiddleware], async (req, res) => {
@@ -311,6 +313,23 @@ app.post('/api/ads', [authMiddleware, adminMiddleware], async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// נתיב לעדכון פרסומת (למשל הוספת שקופיות)
+app.patch('/api/ads/:id', [authMiddleware, adminMiddleware], async (req, res) => {
+    try {
+        const updatedAd = await Ad.findByIdAndUpdate(req.params.id, req.body, { new: true });
+        res.json(updatedAd);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// נתיב למחיקת פרסומת
+app.delete('/api/ads/:id', [authMiddleware, adminMiddleware], async (req, res) => {
+    try {
+        await Ad.findByIdAndDelete(req.params.id);
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// --- ניוזלטר והודעות מהאתר ---
 app.post('/api/newsletter/subscribe', async (req, res) => {
     try {
         const { email } = req.body;
@@ -323,6 +342,14 @@ app.post('/api/newsletter/subscribe', async (req, res) => {
 
 app.get('/api/contact', authMiddleware, async (req, res) => res.json(await ContactMessage.find().sort({ _id: -1 })));
 app.post('/api/contact', async (req, res) => res.json(await new ContactMessage(req.body).save()));
+
+// נתיב למחיקת הודעת קשר (לניהול הודעות)
+app.delete('/api/contact/:id', [authMiddleware, adminMiddleware], async (req, res) => {
+    try {
+        await ContactMessage.findByIdAndDelete(req.params.id);
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
 
 // --- 6. הגדרות שיתוף דינמיות (Metadata Injection) ---
 

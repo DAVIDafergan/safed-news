@@ -11,23 +11,37 @@ export const AdminDashboard: React.FC = () => {
 
   // --- הווסף עבור הודעות (בעיה 1) ---
   const [localMessages, setLocalMessages] = useState(contactMessages);
+  
+  const fetchMessages = async () => {
+      try {
+          const token = localStorage.getItem('x-auth-token');
+          const res = await fetch('/api/contact', {
+              headers: { 'x-auth-token': token || '' }
+          });
+          const data = await res.json();
+          setLocalMessages(data);
+      } catch (err) {
+          console.error("שגיאה בטעינת הודעות:", err);
+      }
+  };
+
   useEffect(() => {
     if (activeTab === 'messages') {
-        const fetchMessages = async () => {
-            try {
-                const token = localStorage.getItem('x-auth-token');
-                const res = await fetch('/api/contact', {
-                    headers: { 'x-auth-token': token || '' }
-                });
-                const data = await res.json();
-                setLocalMessages(data);
-            } catch (err) {
-                console.error("שגיאה בטעינת הודעות:", err);
-            }
-        };
         fetchMessages();
     }
   }, [activeTab]);
+
+  const handleDeleteMessage = async (id: string) => {
+    if (!window.confirm('למחוק את ההודעה לצמיתות?')) return;
+    try {
+        const token = localStorage.getItem('x-auth-token');
+        await fetch(`/api/contact/${id}`, {
+            method: 'DELETE',
+            headers: { 'x-auth-token': token || '' }
+        });
+        fetchMessages();
+    } catch (err) { console.error(err); }
+  };
 
   // New Post Form State
   const [newPost, setNewPost] = useState<Partial<Post>>({
@@ -170,6 +184,18 @@ export const AdminDashboard: React.FC = () => {
     } catch (err) { console.error(err); }
   };
 
+  const handleDeleteAd = async (id: string) => {
+    if (!window.confirm('למחוק את כל שטח הפרסום הזה?')) return;
+    try {
+        const token = localStorage.getItem('x-auth-token');
+        await fetch(`/api/ads/${id}`, {
+            method: 'DELETE',
+            headers: { 'x-auth-token': token || '' }
+        });
+        window.location.reload();
+    } catch (err) { console.error(err); }
+  };
+
   const startEditingAd = (ad: Ad) => {
     setEditingAdId(ad.id || (ad as any)._id);
     setEditingSlides([...ad.slides]); 
@@ -180,12 +206,29 @@ export const AdminDashboard: React.FC = () => {
     setEditingSlides([]);
   };
 
-  const saveAdChanges = () => {
+  const saveAdChanges = async () => {
     if (editingAdId) {
-      updateAd(editingAdId, { slides: editingSlides });
-      setEditingAdId(null);
-      setEditingSlides([]);
-      alert('השינויים נשמרו!');
+      try {
+          const token = localStorage.getItem('x-auth-token');
+          const response = await fetch(`/api/ads/${editingAdId}`, {
+              method: 'PATCH',
+              headers: {
+                  'Content-Type': 'application/json',
+                  'x-auth-token': token || ''
+              },
+              body: JSON.stringify({ slides: editingSlides })
+          });
+          
+          if (response.ok) {
+              updateAd(editingAdId, { slides: editingSlides });
+              setEditingAdId(null);
+              setEditingSlides([]);
+              alert('השינויים נשמרו בהצלחה!');
+          }
+      } catch (err) {
+          console.error(err);
+          alert('שגיאה בשמירה לשרת');
+      }
     }
   };
 
@@ -542,7 +585,13 @@ export const AdminDashboard: React.FC = () => {
                  
                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {ads.map(ad => (
-                        <div key={ad.id || (ad as any)._id} className="bg-gray-50 p-6 rounded-xl border border-gray-200 hover:shadow-md transition">
+                        <div key={ad.id || (ad as any)._id} className="bg-gray-50 p-6 rounded-xl border border-gray-200 hover:shadow-md transition relative group">
+                            <button 
+                                onClick={() => handleDeleteAd(ad.id || (ad as any)._id)}
+                                className="absolute top-2 left-2 bg-white text-red-500 p-2 rounded-full shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                                <Trash2 size={16} />
+                            </button>
                             <div className="flex justify-between items-start mb-4">
                                 <div>
                                     <h3 className="font-bold text-lg text-gray-900">{ad.title}</h3>
@@ -604,7 +653,11 @@ export const AdminDashboard: React.FC = () => {
                                 </div>
                                 
                                 <div className="w-32 h-24 bg-gray-200 rounded-lg overflow-hidden shrink-0 border border-gray-300">
-                                    <img src={slide.imageUrl} alt="preview" className="w-full h-full object-cover" />
+                                    {slide.videoUrl ? (
+                                        <video src={slide.videoUrl} className="w-full h-full object-cover" />
+                                    ) : (
+                                        <img src={slide.imageUrl} alt="preview" className="w-full h-full object-cover" />
+                                    )}
                                 </div>
 
                                 <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -712,12 +765,18 @@ export const AdminDashboard: React.FC = () => {
           <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-200 animate-fade-in">
              <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-bold text-gray-800">הודעות מהאתר ({localMessages.length})</h2>
-                <button onClick={() => window.location.reload()} className="text-red-700 flex items-center gap-1 text-sm font-bold"><RefreshCw size={14}/>רענן</button>
+                <button onClick={fetchMessages} className="text-red-700 flex items-center gap-1 text-sm font-bold"><RefreshCw size={14}/>רענן</button>
              </div>
              <div className="space-y-4">
                {localMessages.length > 0 ? (
                  localMessages.map(msg => (
-                   <div key={msg.id || (msg as any)._id} className={`p-6 rounded-xl border ${msg.read ? 'bg-gray-50 border-gray-200' : 'bg-white border-red-100 shadow-sm border-r-4 border-r-red-500'}`}>
+                   <div key={msg.id || (msg as any)._id} className={`p-6 rounded-xl border relative ${msg.read ? 'bg-gray-50 border-gray-200' : 'bg-white border-red-100 shadow-sm border-r-4 border-r-red-500'}`}>
+                      <button 
+                        onClick={() => handleDeleteMessage(msg.id || (msg as any)._id)}
+                        className="absolute top-4 left-4 text-gray-300 hover:text-red-500 transition-colors"
+                      >
+                          <Trash2 size={18} />
+                      </button>
                       <div className="flex justify-between items-start mb-3">
                          <div>
                             <h3 className="font-bold text-lg text-gray-900">{msg.subject}</h3>
