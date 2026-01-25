@@ -29,7 +29,7 @@ export const AdminDashboard: React.FC = () => {
     if (activeTab === 'messages') {
         fetchMessages();
     }
-  }, [activeTab]);
+  }, [activeTab, contactMessages]); // הוספתי סנכרון עם הקונטקסט
 
   const handleDeleteMessage = async (id: string) => {
     if (!window.confirm('למחוק את ההודעה לצמיתות?')) return;
@@ -654,7 +654,7 @@ export const AdminDashboard: React.FC = () => {
                                 
                                 <div className="w-32 h-24 bg-gray-200 rounded-lg overflow-hidden shrink-0 border border-gray-300">
                                     {slide.videoUrl ? (
-                                        <video src={slide.videoUrl} className="w-full h-full object-cover" />
+                                        <video src={slide.videoUrl} className="w-full h-full object-cover" autoPlay muted loop />
                                     ) : (
                                         <img src={slide.imageUrl} alt="preview" className="w-full h-full object-cover" />
                                     )}
@@ -698,16 +698,23 @@ export const AdminDashboard: React.FC = () => {
                                         </div>
                                     </div>
                                      <div className="md:col-span-2">
-                                        <label className="block text-xs font-bold text-gray-500 mb-1">קישור לוידאו (אופציונלי)</label>
-                                        <div className="relative">
-                                            <Video size={14} className="absolute top-3 right-3 text-gray-400" />
-                                            <input 
-                                                type="text" 
-                                                value={slide.videoUrl || ''}
-                                                onChange={(e) => updateSlide(index, 'videoUrl', e.target.value)}
-                                                placeholder="https://...mp4"
-                                                className="w-full pl-3 pr-9 py-2 bg-white border border-gray-300 rounded text-sm focus:ring-1 focus:ring-red-500 outline-none"
-                                            />
+                                        <label className="block text-xs font-bold text-gray-500 mb-1">קישור לוידאו (אופציונלי - יופיע במקום תמונה)</label>
+                                        <div className="relative flex gap-2">
+                                            <div className="relative flex-1">
+                                                <Video size={14} className="absolute top-3 right-3 text-gray-400" />
+                                                <input 
+                                                    type="text" 
+                                                    value={slide.videoUrl || ''}
+                                                    onChange={(e) => updateSlide(index, 'videoUrl', e.target.value)}
+                                                    placeholder="https://...mp4"
+                                                    className="w-full pl-3 pr-9 py-2 bg-white border border-gray-300 rounded text-sm focus:ring-1 focus:ring-red-500 outline-none"
+                                                />
+                                            </div>
+                                            {slide.videoUrl && (
+                                                <button onClick={() => updateSlide(index, 'videoUrl', '')} className="text-red-500 p-2 border rounded border-red-100 hover:bg-red-50">
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
