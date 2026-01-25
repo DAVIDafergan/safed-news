@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useApp } from '../context/AppContext';
+import { useApp } from '../context/AppContext'; // נשאר רק בשביל ה-login אחרי ההרשמה
 import { useNavigate, Link } from 'react-router-dom';
 import { User, Mail, Lock, UserPlus, ArrowRight, Loader2 } from 'lucide-react';
 
@@ -9,7 +9,9 @@ export const Register: React.FC = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { register } = useApp();
+  
+  // אנחנו נשתמש ב-login כדי לשמור את המשתמש ב-Context אחרי ההרשמה המוצלחת
+  const { login } = useApp(); 
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -22,22 +24,42 @@ export const Register: React.FC = () => {
     }
     
     setIsSubmitting(true);
+    
     try {
-        const success = await register({
-          id: Date.now().toString(),
-          name,
-          email,
-          password,
-          role: 'user',
-          isAuthenticated: true,
-          joinedDate: new Date().toISOString().split('T')[0]
+        console.log("🚀 מתחיל תהליך הרשמה מול השרת...");
+
+        // 1. שליחת בקשה ישירה לשרת (עוקף את useApp)
+        const response = await fetch('/api/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                name, 
+                email, 
+                password 
+            })
         });
 
-        if (success) {
-          navigate('/');
+        const data = await response.json();
+        console.log("📩 תשובת שרת:", data);
+
+        if (response.ok) {
+            // 2. ההרשמה הצליחה! נבצע התחברות אוטומטית ב-Context
+            // השרת מחזיר { token, user }
+            if (data.token && login) {
+                // שמירת הטוקן (בדרך כלל הפונקציה login ב-Context עושה את זה)
+                localStorage.setItem('safed_news_user', JSON.stringify(data));
+                // עדכון ה-Context אם אפשר, או פשוט רענון
+                window.location.href = '/'; 
+            } else {
+                navigate('/');
+            }
         } else {
-          setError('כתובת האימייל כבר רשומה במערכת');
+            // 3. טיפול בשגיאות מהשרת (למשל: אימייל תפוס)
+            setError(data.msg || data.error || 'שגיאה בהרשמה');
         }
+    } catch (err) {
+        console.error("🔥 שגיאת רשת:", err);
+        setError('שגיאת תקשורת עם השרת. בדוק את החיבור.');
     } finally {
         setIsSubmitting(false);
     }
@@ -94,7 +116,7 @@ export const Register: React.FC = () => {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full pl-4 pr-10 py-3 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all font-medium"
-              placeholder="סיסמה"
+              placeholder="סיסמה (לפחות 6 תווים)"
               required
               minLength={6}
             />
