@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Menu, X, Search, User as UserIcon, LogOut, ChevronDown, UserPlus, Loader2, FileText } from 'lucide-react';
-import { Category, User, Post } from '../../types';
-import { useApp } from '../../context/AppContext';
+// שינוי נתיב הייבוא (רמה אחת למעלה במקום שתיים)
+import { Category, User, Post } from '../types';
+import { useApp } from '../context/AppContext';
 
 interface HeaderProps {
   onSearch: (query: string) => void;
@@ -147,7 +148,7 @@ export const Header = ({ onSearch, user }: HeaderProps) => {
                   </li>
                 ))}
                 
-                {/* קישור העיתון השבועי (חדש) */}
+                {/* קישור העיתון השבועי */}
                 <li>
                   <Link 
                     to="/newspaper"
@@ -391,7 +392,7 @@ export const Header = ({ onSearch, user }: HeaderProps) => {
               
               <div className="border-t border-gray-100 my-2"></div>
 
-              {/* קישור העיתון השבועי במובייל (חדש) */}
+              {/* קישור העיתון השבועי במובייל */}
               <Link 
                   to="/newspaper"
                   className="block px-5 py-3.5 rounded-xl text-gray-700 font-bold hover:bg-red-50 hover:text-red-700 transition-all flex items-center gap-2"
