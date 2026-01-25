@@ -284,10 +284,13 @@ export const AdminDashboard: React.FC = () => {
     setEditingSlides([]);
   };
 
+  // --- פונקציית שמירה מעודכנת עם תיקון טוקן ---
   const saveAdChanges = async () => {
     if (editingAdId) {
       try {
-          const token = localStorage.getItem('x-auth-token');
+          // חפש את הטוקן בשני המקומות האפשריים
+          const token = localStorage.getItem('x-auth-token') || localStorage.getItem('token');
+          
           if (!token) {
               alert('אינך מחובר או שהחיבור פג. נא להתחבר מחדש.');
               return;
@@ -685,56 +688,16 @@ export const AdminDashboard: React.FC = () => {
           </div>
         )}
 
-        {/* --- ADS MANAGER TAB --- */}
+        {/* --- ADS MANAGER TAB (Fixed Mode) --- */}
         {activeTab === 'ads' && (
           <div className="space-y-8 animate-fade-in">
              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
                  <div className="flex justify-between items-center mb-6">
                     <h2 className="text-2xl font-bold text-gray-800">ניהול באנרים ופרסומות</h2>
-                    <button 
-                      onClick={() => setIsCreatingAd(!isCreatingAd)}
-                      className="bg-red-700 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2"
-                    >
-                      <Plus size={18} /> שטח פרסום חדש
-                    </button>
+                    {/* כפתור יצירת באנר הוסר כדי לשמור על תבנית קבועה */}
                  </div>
 
-                 {isCreatingAd && (
-                    <div className="mb-8 p-6 bg-gray-50 rounded-xl border-2 border-dashed border-red-200 animate-fade-in">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                              <label className="block text-sm font-bold mb-2 text-gray-700">שם הקמפיין</label>
-                              <input 
-                                type="text" 
-                                value={newAdData.title} 
-                                onChange={(e) => setNewAdData({...newAdData, title: e.target.value})} 
-                                className="w-full px-4 py-2 border border-gray-300 rounded focus:ring-1 focus:ring-red-500 outline-none" 
-                                placeholder="לדוגמה: מבצעי חורף" 
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-sm font-bold mb-2 text-gray-700">מיקום (Area)</label>
-                                <select 
-                                  value={newAdData.area} 
-                                  onChange={(e) => setNewAdData({...newAdData, area: e.target.value})} 
-                                  className="w-full px-4 py-2 border border-gray-300 rounded focus:ring-1 focus:ring-red-500 outline-none"
-                                >
-                                    <option value="leaderboard">Leaderboard (באנר עליון רחב)</option>
-                                    <option value="homepage_top">Top Banner (מעל הסליידר)</option>
-                                    <option value="homepage_mid">Homepage Mid (אמצע דף הבית)</option>
-                                    <option value="category_between">Between Categories (בין קטגוריות)</option>
-                                    <option value="sidebar">Sidebar (סיידבר - תמונה)</option>
-                                    <option value="sidebar_video">Sidebar Video (סיידבר - וידאו)</option>
-                                    <option value="sidebar_bottom">Sidebar Bottom (סיידבר תחתון)</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div className="mt-4 flex gap-2">
-                          <button onClick={handleCreateAd} className="bg-green-600 text-white px-6 py-2 rounded font-bold hover:bg-green-700 transition">צור שטח פרסום</button>
-                          <button onClick={() => setIsCreatingAd(false)} className="text-gray-500 px-6 py-2 hover:bg-gray-100 rounded transition">ביטול</button>
-                        </div>
-                    </div>
-                 )}
+                 {/* טופס יצירה הוסר מכיוון שאין אפשרות ליצור חדשים */}
                  
                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {ads.map(ad => (
@@ -765,13 +728,7 @@ export const AdminDashboard: React.FC = () => {
                               >
                                   <Edit2 size={16} /> ערוך
                               </button>
-                              <button 
-                                onClick={() => handleDeleteAd(ad.id || (ad as any)._id)}
-                                className="p-2 border border-gray-200 text-gray-400 hover:text-red-600 hover:border-red-100 rounded-lg transition"
-                                title="מחק שטח פרסום"
-                              >
-                                <Trash2 size={16} />
-                              </button>
+                              {/* כפתור המחיקה הוסר - באנרים קבועים בלבד */}
                             </div>
                         </div>
                     ))}
