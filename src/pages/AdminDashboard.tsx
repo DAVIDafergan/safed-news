@@ -2,16 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { Category, Post, Ad, AdSlide } from '../types';
 import { useNavigate } from 'react-router-dom';
-import { api } from '../services/api'; // הוספתי את הייבוא הזה לטובת העלאת העיתון
+import { api } from '../services/api';
 import { Plus, Layout, LogOut, Image as ImageIcon, Link as LinkIcon, Users, Mail, Trash2, Edit2, GripVertical, Check, X as XIcon, Save, Video, Bell, Upload, Camera, RefreshCw, FileText } from 'lucide-react';
 
 export const AdminDashboard: React.FC = () => {
   const { user, logout, addPost, deletePost, ads, updateAd, registeredUsers, contactMessages, posts } = useApp();
   const navigate = useNavigate();
-  // עדכנתי את הטיפוס כדי לכלול את 'newspaper'
   const [activeTab, setActiveTab] = useState<'posts' | 'ads' | 'users' | 'messages' | 'alerts' | 'newspaper'>('posts');
 
-  // --- הודעות (בעיה 1 - סנכרון מול השרת) ---
+  // --- הודעות ---
   const [localMessages, setLocalMessages] = useState(contactMessages);
   
   const fetchMessages = async () => {
@@ -41,7 +40,7 @@ export const AdminDashboard: React.FC = () => {
             method: 'DELETE',
             headers: { 'x-auth-token': token || '' }
         });
-        fetchMessages(); // רענון הרשימה לאחר מחיקה
+        fetchMessages();
     } catch (err) { console.error(err); }
   };
 
@@ -68,7 +67,7 @@ export const AdminDashboard: React.FC = () => {
   const [editingSlides, setEditingSlides] = useState<AdSlide[]>([]);
   const [draggedSlideIndex, setDraggedSlideIndex] = useState<number | null>(null);
 
-  // --- Newspaper Management State (חדש) ---
+  // --- Newspaper Management State ---
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [paperTitle, setPaperTitle] = useState('');
   const [isUploadingPaper, setIsUploadingPaper] = useState(false);
@@ -78,16 +77,35 @@ export const AdminDashboard: React.FC = () => {
     navigate('/');
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, callback: (url: string) => void) => {
+  // --- פונקציית העלאת תמונות ל-S3 (מעודכן) ---
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, callback: (url: string) => void) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        if (typeof reader.result === 'string') {
-          callback(reader.result);
-        }
-      };
-      reader.readAsDataURL(file);
+      // יצירת טופס לשליחת הקובץ
+      const formData = new FormData();
+      formData.append('file', file);
+
+      try {
+          const token = localStorage.getItem('x-auth-token');
+          // שליחה לשרת שלנו -> שמעביר ל-S3
+          const res = await fetch('/api/upload', {
+              method: 'POST',
+              headers: { 
+                  'x-auth-token': token || '' 
+              },
+              body: formData
+          });
+
+          if (!res.ok) throw new Error('Upload failed');
+
+          const data = await res.json();
+          // השרת מחזיר { url: "https://...s3..." }
+          callback(data.url);
+          
+      } catch (err) {
+          console.error("Upload error:", err);
+          alert('שגיאה בהעלאת התמונה לשרת. בדוק את החיבור.');
+      }
     }
   };
 
@@ -163,7 +181,7 @@ export const AdminDashboard: React.FC = () => {
 
   const flashPosts = posts.filter(p => p.category === Category.NEWS);
 
-  // --- Newspaper Upload Handler (חדש) ---
+  // --- העלאת עיתון ל-S3 (מעודכן) ---
   const handleUploadPaper = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!pdfFile || !paperTitle) {
@@ -172,39 +190,45 @@ export const AdminDashboard: React.FC = () => {
     }
 
     setIsUploadingPaper(true);
-    const reader = new FileReader();
-    reader.readAsDataURL(pdfFile);
-    
-    reader.onload = async () => {
-        try {
-            if (typeof reader.result !== 'string') throw new Error('Failed to read file');
-            
-            await api.uploadNewspaper({
-                title: paperTitle,
-                pdfUrl: reader.result,
-                date: new Date().toLocaleDateString('he-IL')
-            });
-            
-            alert('העיתון הועלה בהצלחה! ניתן לצפות בו באתר.');
-            setPaperTitle('');
-            setPdfFile(null);
-            // איפוס ה-input file ויזואלית
-            (document.getElementById('pdf-upload') as HTMLInputElement).value = '';
-        } catch (err) {
-            console.error(err);
-            alert('שגיאה בהעלאת העיתון. וודא שהקובץ תקין ולא גדול מדי.');
-        } finally {
-            setIsUploadingPaper(false);
-        }
-    };
-    
-    reader.onerror = () => {
-        alert('שגיאה בקריאת הקובץ');
+
+    try {
+        // 1. הכנת הקובץ לשליחה
+        const formData = new FormData();
+        formData.append('file', pdfFile);
+
+        const token = localStorage.getItem('x-auth-token');
+
+        // 2. העלאה ל-S3 דרך השרת
+        const uploadRes = await fetch('/api/upload', {
+            method: 'POST',
+            headers: { 'x-auth-token': token || '' },
+            body: formData
+        });
+
+        if (!uploadRes.ok) throw new Error('PDF upload failed');
+        const uploadData = await uploadRes.json();
+        
+        // 3. שמירת רשומת העיתון עם הקישור ל-S3
+        await api.uploadNewspaper({
+            title: paperTitle,
+            pdfUrl: uploadData.url, // שימוש ב-URL שחזר מ-S3
+            date: new Date().toLocaleDateString('he-IL')
+        });
+        
+        alert('העיתון הועלה בהצלחה! ניתן לצפות בו באתר.');
+        setPaperTitle('');
+        setPdfFile(null);
+        (document.getElementById('pdf-upload') as HTMLInputElement).value = '';
+
+    } catch (err) {
+        console.error(err);
+        alert('שגיאה בהעלאת העיתון. וודא שהקובץ תקין.');
+    } finally {
         setIsUploadingPaper(false);
-    };
+    }
   };
 
-  // --- פונקציות ניהול באנרים (מעודכן לשרת) ---
+  // --- פונקציות ניהול באנרים ---
   const handleCreateAd = async () => {
     if (!newAdData.title) return alert('נא להזין שם לקמפיין');
     
@@ -462,7 +486,7 @@ export const AdminDashboard: React.FC = () => {
               </div>
         )}
 
-        {/* --- NEWSPAPER TAB CONTENT (חדש) --- */}
+        {/* --- NEWSPAPER TAB CONTENT --- */}
         {activeTab === 'newspaper' && (
             <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-200 animate-fade-in max-w-2xl mx-auto">
                  <h2 className="text-2xl font-bold mb-6 text-red-700 flex items-center gap-2">
@@ -661,7 +685,7 @@ export const AdminDashboard: React.FC = () => {
           </div>
         )}
 
-        {/* --- ADS MANAGER TAB (FIXED AREAS) --- */}
+        {/* --- ADS MANAGER TAB --- */}
         {activeTab === 'ads' && (
           <div className="space-y-8 animate-fade-in">
              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
