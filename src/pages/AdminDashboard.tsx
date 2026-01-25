@@ -9,7 +9,7 @@ export const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'posts' | 'ads' | 'users' | 'messages' | 'alerts'>('posts');
 
-  // --- הווסף עבור הודעות (בעיה 1) ---
+  // --- הודעות (בעיה 1 - סנכרון מול השרת) ---
   const [localMessages, setLocalMessages] = useState(contactMessages);
   
   const fetchMessages = async () => {
@@ -29,7 +29,7 @@ export const AdminDashboard: React.FC = () => {
     if (activeTab === 'messages') {
         fetchMessages();
     }
-  }, [activeTab, contactMessages]); // הוספתי סנכרון עם הקונטקסט
+  }, [activeTab]); 
 
   const handleDeleteMessage = async (id: string) => {
     if (!window.confirm('למחוק את ההודעה לצמיתות?')) return;
@@ -39,7 +39,7 @@ export const AdminDashboard: React.FC = () => {
             method: 'DELETE',
             headers: { 'x-auth-token': token || '' }
         });
-        fetchMessages();
+        fetchMessages(); // רענון הרשימה לאחר מחיקה
     } catch (err) { console.error(err); }
   };
 
@@ -50,7 +50,7 @@ export const AdminDashboard: React.FC = () => {
     excerpt: '',
     content: '',
     imageUrl: '',
-    imageCredit: '', // Initialize credit
+    imageCredit: '',
     tags: [],
     isFeatured: false,
   });
@@ -59,7 +59,7 @@ export const AdminDashboard: React.FC = () => {
   // Flash News State
   const [flashContent, setFlashContent] = useState('');
 
-  // Ad Management State (משופר עבור בעיה 2)
+  // Ad Management State
   const [isCreatingAd, setIsCreatingAd] = useState(false);
   const [newAdData, setNewAdData] = useState({ title: '', area: 'sidebar' });
   const [editingAdId, setEditingAdId] = useState<string | null>(null);
@@ -71,7 +71,6 @@ export const AdminDashboard: React.FC = () => {
     navigate('/');
   };
 
-  // Helper to handle file upload and convert to Base64
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, callback: (url: string) => void) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -98,7 +97,7 @@ export const AdminDashboard: React.FC = () => {
       author: user?.name || 'Admin',
       date: new Date().toISOString().split('T')[0],
       imageUrl: newPost.imageUrl || 'https://picsum.photos/800/600',
-      imageCredit: newPost.imageCredit || 'רשתות חברתיות', // Use input or default
+      imageCredit: newPost.imageCredit || 'רשתות חברתיות',
       tags: tagsInput.split(',').map(t => t.trim()).filter(Boolean),
       isFeatured: newPost.isFeatured || false,
       views: 0,
@@ -127,7 +126,7 @@ export const AdminDashboard: React.FC = () => {
 
     const flashPost: Post = {
         id: `flash-${Date.now()}`,
-        title: flashContent, // For ticker, title is the content
+        title: flashContent,
         excerpt: '',
         content: '<p>מבזק חדשות</p>',
         category: Category.NEWS,
@@ -145,7 +144,6 @@ export const AdminDashboard: React.FC = () => {
     alert('המבזק נוסף!');
   };
 
-  // תיקון מחיקה (בעיה 3) - שימוש ב-ID הנכון
   const handleDeleteFlash = (e: React.MouseEvent, post: any) => {
     e.preventDefault();
     e.stopPropagation(); 
@@ -158,7 +156,7 @@ export const AdminDashboard: React.FC = () => {
 
   const flashPosts = posts.filter(p => p.category === Category.NEWS);
 
-  // Ad Editor Functions
+  // --- פונקציות ניהול באנרים (מעודכן לשרת) ---
   const handleCreateAd = async () => {
     if (!newAdData.title) return alert('נא להזין שם לקמפיין');
     
@@ -166,7 +164,8 @@ export const AdminDashboard: React.FC = () => {
       title: newAdData.title,
       area: newAdData.area,
       isActive: true,
-      slides: [{ id: Date.now().toString(), imageUrl: 'https://via.placeholder.com/1200x200', linkUrl: '#' }]
+      // יצירת שקופית ראשונה כברירת מחדל עם קישור ריק
+      slides: [{ id: Date.now().toString(), imageUrl: 'https://via.placeholder.com/1200x200', linkUrl: '' }]
     };
 
     try {
@@ -179,26 +178,33 @@ export const AdminDashboard: React.FC = () => {
       if (res.ok) {
         alert('באנר חדש נוצר בהצלחה!');
         setIsCreatingAd(false);
-        window.location.reload(); // רענון לעדכון הרשימה מהשרת
+        window.location.reload(); 
       }
     } catch (err) { console.error(err); }
   };
 
   const handleDeleteAd = async (id: string) => {
-    if (!window.confirm('למחוק את כל שטח הפרסום הזה?')) return;
+    if (!window.confirm('האם אתה בטוח שברצונך למחוק את כל שטח הפרסום הזה?')) return;
     try {
         const token = localStorage.getItem('x-auth-token');
-        await fetch(`/api/ads/${id}`, {
+        const res = await fetch(`/api/ads/${id}`, {
             method: 'DELETE',
             headers: { 'x-auth-token': token || '' }
         });
-        window.location.reload();
+        if (res.ok) {
+            alert('הבאנר נמחק בהצלחה');
+            window.location.reload();
+        }
     } catch (err) { console.error(err); }
   };
 
   const startEditingAd = (ad: Ad) => {
     setEditingAdId(ad.id || (ad as any)._id);
     setEditingSlides([...ad.slides]); 
+    // גלילה אוטומטית לעורך
+    setTimeout(() => {
+        document.getElementById('ad-editor')?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
   };
 
   const cancelEditingAd = () => {
@@ -223,7 +229,7 @@ export const AdminDashboard: React.FC = () => {
               updateAd(editingAdId, { slides: editingSlides });
               setEditingAdId(null);
               setEditingSlides([]);
-              alert('השינויים נשמרו בהצלחה!');
+              alert('השינויים נשמרו בהצלחה ויופיעו באתר!');
           }
       } catch (err) {
           console.error(err);
@@ -236,7 +242,8 @@ export const AdminDashboard: React.FC = () => {
     const newSlide: AdSlide = {
       id: Date.now().toString(),
       imageUrl: 'https://via.placeholder.com/800x200',
-      linkUrl: '#'
+      linkUrl: '', // כל שקופית מקבלת קישור ייחודי
+      videoUrl: ''
     };
     setEditingSlides([...editingSlides, newSlide]);
   };
@@ -332,9 +339,8 @@ export const AdminDashboard: React.FC = () => {
 
         {/* --- ALERTS TAB CONTENT --- */}
         {activeTab === 'alerts' && (
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                 {/* Create Flash Form */}
-                 <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-200 animate-fade-in h-fit">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-200 animate-fade-in h-fit">
                     <h2 className="text-2xl font-bold mb-6 text-red-700 flex items-center gap-2">
                         <Bell size={24} /> פרסום מבזק חדש
                     </h2>
@@ -357,10 +363,9 @@ export const AdminDashboard: React.FC = () => {
                             <Check size={20} /> פרסם מבזק
                         </button>
                     </form>
-                 </div>
+                  </div>
 
-                 {/* List of Active Flashes */}
-                 <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-200 animate-fade-in">
+                  <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-200 animate-fade-in">
                     <h3 className="text-xl font-bold mb-4 text-gray-800">מבזקים פעילים ({flashPosts.length})</h3>
                     <div className="space-y-3 max-h-[500px] overflow-y-auto custom-scrollbar">
                         {flashPosts.length > 0 ? (
@@ -386,8 +391,8 @@ export const AdminDashboard: React.FC = () => {
                             </div>
                         )}
                     </div>
-                 </div>
-             </div>
+                  </div>
+              </div>
         )}
 
         {activeTab === 'posts' && (
@@ -444,10 +449,9 @@ export const AdminDashboard: React.FC = () => {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                 <div>
+                  <div>
                     <label className="block text-sm font-bold text-gray-700 mb-2">תמונה ראשית</label>
                     <div className="flex flex-col gap-2">
-                         {/* Manual URL Input */}
                          <div className="relative">
                             <ImageIcon size={18} className="absolute top-2.5 right-3 text-gray-400" />
                             <input
@@ -458,7 +462,6 @@ export const AdminDashboard: React.FC = () => {
                                 placeholder="הדבק קישור או העלה קובץ..."
                             />
                         </div>
-                        {/* File Upload Button */}
                         <label className="cursor-pointer bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-bold py-2 px-4 rounded-lg transition flex items-center justify-center gap-2 border border-gray-200 border-dashed">
                            <Upload size={16} />
                            <span>בחר תמונה מהמחשב</span>
@@ -469,18 +472,16 @@ export const AdminDashboard: React.FC = () => {
                               onChange={(e) => handleImageUpload(e, (url) => setNewPost({...newPost, imageUrl: url}))}
                            />
                         </label>
-                        {/* Preview */}
                         {newPost.imageUrl && (
                           <div className="mt-2 h-32 bg-gray-50 rounded border border-gray-200 overflow-hidden">
                             <img src={newPost.imageUrl} alt="preview" className="w-full h-full object-contain" />
                           </div>
                         )}
                     </div>
-                 </div>
-                 
-                 {/* Right Column: Credit and Tags */}
-                 <div className="flex flex-col gap-6">
-                     <div>
+                  </div>
+                  
+                  <div className="flex flex-col gap-6">
+                      <div>
                         <label className="block text-sm font-bold text-gray-700 mb-2">קרדיט צילום</label>
                         <div className="relative">
                              <Camera size={18} className="absolute top-2.5 right-3 text-gray-400" />
@@ -492,9 +493,9 @@ export const AdminDashboard: React.FC = () => {
                                 placeholder="לדוגמה: דוברות העירייה / פלוני אלמוני"
                             />
                         </div>
-                     </div>
+                      </div>
 
-                     <div>
+                      <div>
                         <label className="block text-sm font-bold text-gray-700 mb-2">תגיות (מופרדות בפסיק)</label>
                         <input
                             type="text"
@@ -503,8 +504,8 @@ export const AdminDashboard: React.FC = () => {
                             className="w-full px-4 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-red-500 outline-none"
                             placeholder="צפת, שלג, עירייה..."
                         />
-                     </div>
-                 </div>
+                      </div>
+                  </div>
               </div>
 
               <div className="flex items-center gap-3 bg-gray-50 p-4 rounded-lg">
@@ -530,7 +531,7 @@ export const AdminDashboard: React.FC = () => {
           </div>
         )}
 
-        {/* Ads Manager Tab (משופר לבעיה 2) */}
+        {/* --- ADS MANAGER TAB --- */}
         {activeTab === 'ads' && (
           <div className="space-y-8 animate-fade-in">
              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
@@ -544,7 +545,6 @@ export const AdminDashboard: React.FC = () => {
                     </button>
                  </div>
 
-                 {/* טופס יצירת באנר חדש */}
                  {isCreatingAd && (
                      <div className="mb-8 p-6 bg-gray-50 rounded-xl border-2 border-green-100 animate-fade-in">
                          <h3 className="font-bold text-lg mb-4 text-green-800">יצירת באנר חדש</h3>
@@ -573,9 +573,6 @@ export const AdminDashboard: React.FC = () => {
                                  </select>
                              </div>
                          </div>
-                         <div className="mt-4 p-3 bg-blue-50 text-blue-700 text-xs rounded border border-blue-100">
-                             <strong>הוראות מידה:</strong> ראש עמוד: 1200x150 | סיידבר: 350x350 | אמצע דף: 1200x200
-                         </div>
                          <div className="mt-4 flex gap-2">
                              <button onClick={handleCreateAd} className="bg-green-600 text-white px-4 py-2 rounded font-bold">צור באנר</button>
                              <button onClick={() => setIsCreatingAd(false)} className="bg-gray-300 px-4 py-2 rounded">ביטול</button>
@@ -588,7 +585,8 @@ export const AdminDashboard: React.FC = () => {
                         <div key={ad.id || (ad as any)._id} className="bg-gray-50 p-6 rounded-xl border border-gray-200 hover:shadow-md transition relative group">
                             <button 
                                 onClick={() => handleDeleteAd(ad.id || (ad as any)._id)}
-                                className="absolute top-2 left-2 bg-white text-red-500 p-2 rounded-full shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"
+                                className="absolute top-2 left-2 bg-white text-red-500 p-2 rounded-full shadow-sm opacity-0 group-hover:opacity-100 transition-opacity z-20"
+                                title="מחק את כל שטח הפרסום"
                             >
                                 <Trash2 size={16} />
                             </button>
@@ -604,8 +602,8 @@ export const AdminDashboard: React.FC = () => {
                                 {ad.slides.length > 0 && (
                                     <img src={ad.slides[0].imageUrl} alt="preview" className="w-full h-full object-cover opacity-70" />
                                 )}
-                                <div className="absolute inset-0 flex items-center justify-center bg-black/30 text-white font-bold">
-                                    {ad.slides.length} שקופיות (החלפה כל 3 שנ')
+                                <div className="absolute inset-0 flex items-center justify-center bg-black/30 text-white font-bold text-sm">
+                                    {ad.slides.length} תמונות/סרטונים
                                 </div>
                             </div>
 
@@ -613,24 +611,24 @@ export const AdminDashboard: React.FC = () => {
                                 onClick={() => startEditingAd(ad)}
                                 className="w-full bg-white border border-gray-300 text-gray-700 font-bold py-2 rounded-lg hover:bg-red-50 hover:text-red-700 hover:border-red-200 transition flex items-center justify-center gap-2"
                             >
-                                <Edit2 size={16} /> ערוך קמפיין / הוסף שקופיות
+                                <Edit2 size={16} /> ערוך קמפיין / נהל שקופיות
                             </button>
                         </div>
                     ))}
                  </div>
              </div>
 
-             {/* Ad Editor Modal/Section */}
+             {/* Ad Editor Section */}
              {editingAdId && (
                  <div className="bg-white p-8 rounded-xl shadow-lg border-2 border-red-100 animate-fade-in scroll-mt-20" id="ad-editor">
-                    <div className="flex justify-between items-center mb-6">
+                    <div className="flex flex-wrap justify-between items-center gap-4 mb-6">
                         <h3 className="text-2xl font-bold text-gray-900">עריכת קמפיין: {ads.find(a => (a.id === editingAdId || (a as any)._id === editingAdId))?.title}</h3>
                         <div className="flex gap-3">
                             <button onClick={addSlide} className="flex items-center gap-1 bg-gray-100 hover:bg-gray-200 text-gray-800 px-4 py-2 rounded-lg font-bold transition">
-                                <Plus size={16} /> הוסף שקופית נוספת
+                                <Plus size={16} /> הוסף תמונה/סרטון
                             </button>
                             <button onClick={saveAdChanges} className="flex items-center gap-1 bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-bold transition shadow-md">
-                                <Save size={16} /> שמור שינויים
+                                <Save size={16} /> שמור שינויים באתר
                             </button>
                             <button onClick={cancelEditingAd} className="flex items-center gap-1 bg-red-50 text-red-700 hover:bg-red-100 px-4 py-2 rounded-lg font-bold transition">
                                 <XIcon size={16} /> ביטול
@@ -646,13 +644,13 @@ export const AdminDashboard: React.FC = () => {
                                 onDragStart={(e) => handleDragStart(e, index)}
                                 onDragOver={(e) => handleDragOver(e, index)}
                                 onDrop={(e) => handleDrop(e, index)}
-                                className={`flex gap-6 items-start p-6 bg-gray-50 rounded-xl border border-gray-200 transition-all ${draggedSlideIndex === index ? 'opacity-50 ring-2 ring-red-300' : 'hover:border-red-200'}`}
+                                className={`flex flex-col md:flex-row gap-6 items-start p-6 bg-gray-50 rounded-xl border border-gray-200 transition-all ${draggedSlideIndex === index ? 'opacity-50 ring-2 ring-red-300' : 'hover:border-red-200'}`}
                             >
-                                <div className="cursor-grab text-gray-400 hover:text-gray-600 mt-8">
+                                <div className="cursor-grab text-gray-400 hover:text-gray-600 hidden md:block mt-8">
                                     <GripVertical size={24} />
                                 </div>
                                 
-                                <div className="w-32 h-24 bg-gray-200 rounded-lg overflow-hidden shrink-0 border border-gray-300">
+                                <div className="w-full md:w-32 h-24 bg-gray-200 rounded-lg overflow-hidden shrink-0 border border-gray-300">
                                     {slide.videoUrl ? (
                                         <video src={slide.videoUrl} className="w-full h-full object-cover" autoPlay muted loop />
                                     ) : (
@@ -660,7 +658,7 @@ export const AdminDashboard: React.FC = () => {
                                     )}
                                 </div>
 
-                                <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
                                     <div>
                                         <label className="block text-xs font-bold text-gray-500 mb-1">תמונה (קישור או העלאה)</label>
                                         <div className="flex gap-2">
@@ -685,7 +683,7 @@ export const AdminDashboard: React.FC = () => {
                                         </div>
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-bold text-gray-500 mb-1">קישור יעד (לחיצה)</label>
+                                        <label className="block text-xs font-bold text-gray-500 mb-1">קישור יעד (לאן השקופית תוביל?)</label>
                                         <div className="relative">
                                             <LinkIcon size={14} className="absolute top-3 right-3 text-gray-400" />
                                             <input 
@@ -721,8 +719,8 @@ export const AdminDashboard: React.FC = () => {
 
                                 <button 
                                     onClick={() => removeSlide(index)}
-                                    className="text-red-400 hover:text-red-700 hover:bg-red-50 p-2 rounded-lg transition mt-6"
-                                    title="מחק שקופית"
+                                    className="text-red-400 hover:text-red-700 hover:bg-red-50 p-2 rounded-lg transition self-center md:self-auto"
+                                    title="מחק שקופית זו"
                                 >
                                     <Trash2 size={20} />
                                 </button>
@@ -767,17 +765,17 @@ export const AdminDashboard: React.FC = () => {
           </div>
         )}
 
-        {/* Messages Tab (תיקון בעיה 1) */}
+        {/* Messages Tab */}
         {activeTab === 'messages' && (
           <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-200 animate-fade-in">
              <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-bold text-gray-800">הודעות מהאתר ({localMessages.length})</h2>
-                <button onClick={fetchMessages} className="text-red-700 flex items-center gap-1 text-sm font-bold"><RefreshCw size={14}/>רענן</button>
+                <button onClick={fetchMessages} className="text-red-700 flex items-center gap-1 text-sm font-bold hover:bg-red-50 p-2 rounded transition"><RefreshCw size={14}/>רענן נתונים</button>
              </div>
              <div className="space-y-4">
                {localMessages.length > 0 ? (
                  localMessages.map(msg => (
-                   <div key={msg.id || (msg as any)._id} className={`p-6 rounded-xl border relative ${msg.read ? 'bg-gray-50 border-gray-200' : 'bg-white border-red-100 shadow-sm border-r-4 border-r-red-500'}`}>
+                   <div key={msg.id || (msg as any)._id} className={`p-6 rounded-xl border relative transition-all ${msg.read ? 'bg-gray-50 border-gray-200' : 'bg-white border-red-100 shadow-sm border-r-4 border-r-red-500'}`}>
                       <button 
                         onClick={() => handleDeleteMessage(msg.id || (msg as any)._id)}
                         className="absolute top-4 left-4 text-gray-300 hover:text-red-500 transition-colors"
@@ -787,24 +785,24 @@ export const AdminDashboard: React.FC = () => {
                       <div className="flex justify-between items-start mb-3">
                          <div>
                             <h3 className="font-bold text-lg text-gray-900">{msg.subject}</h3>
-                            <div className="flex items-center gap-3 text-sm text-gray-500 mt-1">
+                            <div className="flex flex-wrap items-center gap-3 text-sm text-gray-500 mt-1">
                                <span className="font-bold text-gray-800">{msg.name}</span>
-                               <span>&bull;</span>
+                               <span className="hidden md:inline">&bull;</span>
                                <span>{msg.email}</span>
-                               <span>&bull;</span>
+                               <span className="hidden md:inline">&bull;</span>
                                <span>{msg.phone || 'אין טלפון'}</span>
                             </div>
                          </div>
                          <span className="text-xs text-gray-400 bg-white px-2 py-1 rounded border border-gray-100">{msg.date}</span>
                       </div>
-                      <p className="text-gray-700 bg-gray-50/50 p-4 rounded-lg text-sm leading-relaxed">
+                      <p className="text-gray-700 bg-gray-50/50 p-4 rounded-lg text-sm leading-relaxed whitespace-pre-wrap">
                         {msg.message}
                       </p>
                    </div>
                  ))
                ) : (
                  <div className="text-center py-20 text-gray-400">
-                   אין הודעות חדשות.
+                   אין הודעות חדשות במערכת.
                  </div>
                )}
              </div>
