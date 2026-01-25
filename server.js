@@ -258,43 +258,72 @@ app.delete('/api/alerts/:id', [authMiddleware, adminMiddleware], async (req, res
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// --- אימות ומשתמשים ---
-app.post('/api/register', async (req, res) => {
-    const { email, password, name } = req.body;
-    try {
-        if (!process.env.JWT_SECRET) throw new Error("JWT_SECRET is missing in environment");
-        let user = await User.findOne({ email: email.toLowerCase() });
-        if (user) return res.status(400).json({ msg: 'המשתמש כבר קיים' });
+// --- אימות ומשתמשים (Auth - נתיבים מעודכנים לדיבאג) ---
 
-        user = new User({ email, password, name });
+app.post('/api/register', async (req, res) => {
+    // 1. לוג ראשוני
+    console.log("📥 בקשת הרשמה התקבלה:", req.body);
+    
+    const { email, password, name } = req.body;
+
+    try {
+        // 2. ולידציה בסיסית
+        if (!email || !password || !name) {
+            console.log("❌ הרשמה נכשלה: שדות חסרים", req.body);
+            return res.status(400).json({ msg: 'יש למלא שם, אימייל וסיסמה' });
+        }
+
+        if (!process.env.JWT_SECRET) throw new Error("JWT_SECRET is missing in environment");
+        
+        // 3. בדיקה אם קיים
+        let user = await User.findOne({ email: email.toLowerCase() });
+        if (user) {
+            console.log("❌ הרשמה נכשלה: המשתמש כבר קיים", email);
+            return res.status(400).json({ msg: 'המשתמש כבר קיים' });
+        }
+
+        // 4. יצירה
+        user = new User({ email: email.toLowerCase(), password, name });
         const salt = await bcrypt.genSalt(10);
         user.password = await bcrypt.hash(password, salt);
         await user.save();
+        
+        console.log("✅ משתמש חדש נוצר בהצלחה:", email);
 
         const payload = { user: { id: user.id, role: user.role } };
         const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' });
         res.json({ token, user: { id: user.id, name: user.name, role: user.role } });
     } catch (err) { 
-        console.error("❌ שגיאת רישום:", err.message);
+        console.error("❌ שגיאת שרת בהרשמה:", err.message);
         res.status(500).json({ error: 'שגיאת שרת ברישום', details: err.message }); 
     }
 });
 
 app.post('/api/login', async (req, res) => {
     const { email, password } = req.body;
+    console.log("🔍 ניסיון התחברות עבור:", email); // לוג לזיהוי הבקשה
+
     try {
         if (!process.env.JWT_SECRET) throw new Error("JWT_SECRET is missing in environment");
+        
         let user = await User.findOne({ email: email.toLowerCase() });
-        if (!user) return res.status(400).json({ msg: 'פרטים שגויים' });
+        if (!user) {
+            console.log("❌ התחברות נכשלה: משתמש לא נמצא");
+            return res.status(400).json({ msg: 'פרטים שגויים' });
+        }
 
         const isMatch = await bcrypt.compare(password, user.password);
-        if (!isMatch) return res.status(400).json({ msg: 'פרטים שגויים' });
+        if (!isMatch) {
+            console.log("❌ התחברות נכשלה: סיסמה שגויה");
+            return res.status(400).json({ msg: 'פרטים שגויים' });
+        }
 
+        console.log("✅ התחברות מוצלחת!");
         const payload = { user: { id: user.id, role: user.role } };
         const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' });
         res.json({ token, user: { id: user.id, name: user.name, role: user.role } });
     } catch (err) { 
-        console.error("❌ שגיאת התחברות:", err.message);
+        console.error("❌ שגיאת שרת בהתחברות:", err.message);
         res.status(500).json({ error: 'שגיאת שרת בהתחברות', details: err.message }); 
     }
 });
