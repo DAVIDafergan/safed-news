@@ -9,7 +9,7 @@ import { AdminDashboard } from './pages/AdminDashboard';
 import { Login } from './pages/Login';
 import { Register } from './pages/Register';
 import { Contact } from './pages/Contact';
-import { WeeklyPaper } from './pages/WeeklyPaper'; // <-- הוספתי את הייבוא הזה
+import { WeeklyPaper } from './pages/WeeklyPaper';
 import { AccessibilityWidget } from './components/AccessibilityWidget';
 import { Loader2 } from 'lucide-react';
 import { useApp } from './context/AppContext'; 
@@ -50,7 +50,7 @@ const App: React.FC = () => {
           
           <Route path="/category/:categoryName" element={<CategoryPage />} />
 
-          {/* נתיב לעיתון השבועי (חדש) */}
+          {/* נתיב לעיתון השבועי */}
           <Route path="/newspaper" element={<WeeklyPaper />} />
           
           {/* הגנת נתיב ניהול: רק אדמין יכול להיכנס */}
@@ -69,12 +69,30 @@ const App: React.FC = () => {
       </main>
 
       <footer className="bg-[#111] text-gray-400 py-16 mt-12 border-t-8 border-red-700 text-right">
-        <div className="container mx-auto px-4 grid grid-cols-1 md:grid-cols-4 gap-10">
-          <div>
-            <h3 className="text-white text-2xl font-bold mb-4">צפת בתנופה</h3>
-            <p className="text-sm">האתר המוביל לחדשות וקהילה בצפת.</p>
+        <div className="container mx-auto px-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-10 mb-10">
+            <div>
+              <h3 className="text-white text-2xl font-bold mb-4">צפת בתנופה</h3>
+              <p className="text-sm">האתר המוביל לחדשות וקהילה בצפת.</p>
+            </div>
+            {/* ניתן להוסיף כאן עמודות נוספות לפוטר */}
           </div>
-          {/* ניתן להוסיף כאן עמודות נוספות לפוטר */}
+
+          {/* קרדיט פיתוח - חלק תחתון */}
+          <div className="border-t border-gray-800 pt-8 flex flex-col md:flex-row justify-between items-center text-sm gap-4">
+             <p>© כל הזכויות שמורות לצפת בתנופה 2026</p>
+             <p className="flex items-center gap-1">
+                פיתוח ובנייה ע"י 
+                <a 
+                  href="https://wa.me/message/WZKLTKH4KELMD1" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-white font-bold hover:text-red-500 transition-colors duration-300"
+                >
+                  DA פרויקטים ויזמות
+                </a>
+             </p>
+          </div>
         </div>
       </footer>
 
