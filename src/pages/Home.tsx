@@ -8,21 +8,23 @@ import { ArrowLeft, TrendingUp, Mail, Loader2 } from 'lucide-react';
 import { Category, CATEGORY_COLORS } from '../types';
 
 export const Home: React.FC = () => {
+  // שימוש ב-Context המרכזי
   const { posts, ads, isLoading } = useApp();
 
-  // סינון כתבות
+  // סינון כתבות מודגשות וכתבות אחרונות
   const featuredPosts = posts.filter(p => p.isFeatured);
   const latestPosts = posts.slice(0, 6);
   
   // --- שליפת מיקומי פרסומות (קיימים וחדשים) ---
-  const topBannerAd = ads.find(a => a.area === 'homepage_top' && a.isActive); // חדש
+  const topBannerAd = ads.find(a => a.area === 'homepage_top' && a.isActive); 
   const leaderboardAd = ads.find(a => a.area === 'leaderboard' && a.isActive);
   const sidebarAd = ads.find(a => a.area === 'sidebar' && a.isActive);
   const sidebarVideoAd = ads.find(a => a.area === 'sidebar_video' && a.isActive);
-  const sidebarBottomAd = ads.find(a => a.area === 'sidebar_bottom' && a.isActive); // חדש
+  const sidebarBottomAd = ads.find(a => a.area === 'sidebar_bottom' && a.isActive); 
   const midPageAd = ads.find(a => a.area === 'homepage_mid' && a.isActive);
-  const categoryBetweenAd = ads.find(a => a.area === 'category_between' && a.isActive); // חדש
+  const categoryBetweenAd = ads.find(a => a.area === 'category_between' && a.isActive);
 
+  // קטגוריות להצגה (ללא "חדשות")
   const categoriesToShow = Object.values(Category).filter(c => c !== Category.NEWS);
 
   if (isLoading) {

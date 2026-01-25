@@ -547,10 +547,52 @@ export const AdminDashboard: React.FC = () => {
         {activeTab === 'ads' && (
           <div className="space-y-8 animate-fade-in">
              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                 <div className="mb-6">
+                 <div className="flex justify-between items-center mb-6">
                     <h2 className="text-2xl font-bold text-gray-800">ניהול באנרים ופרסומות</h2>
-                    <p className="text-sm text-gray-500 mt-1">בחר שטח פרסום קיים לעדכון התמונות, הסרטונים והקישורים שלו.</p>
+                    <button 
+                      onClick={() => setIsCreatingAd(!isCreatingAd)}
+                      className="bg-red-700 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2"
+                    >
+                      <Plus size={18} /> שטח פרסום חדש
+                    </button>
                  </div>
+
+                 {isCreatingAd && (
+                    <div className="mb-8 p-6 bg-gray-50 rounded-xl border-2 border-dashed border-red-200 animate-fade-in">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-sm font-bold mb-2 text-gray-700">שם הקמפיין</label>
+                              <input 
+                                type="text" 
+                                value={newAdData.title} 
+                                onChange={(e) => setNewAdData({...newAdData, title: e.target.value})} 
+                                className="w-full px-4 py-2 border border-gray-300 rounded focus:ring-1 focus:ring-red-500 outline-none" 
+                                placeholder="לדוגמה: מבצעי חורף" 
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-bold mb-2 text-gray-700">מיקום (Area)</label>
+                                <select 
+                                  value={newAdData.area} 
+                                  onChange={(e) => setNewAdData({...newAdData, area: e.target.value})} 
+                                  className="w-full px-4 py-2 border border-gray-300 rounded focus:ring-1 focus:ring-red-500 outline-none"
+                                >
+                                    <option value="leaderboard">Leaderboard (באנר עליון רחב)</option>
+                                    <option value="homepage_top">Top Banner (מעל הסליידר)</option>
+                                    <option value="homepage_mid">Homepage Mid (אמצע דף הבית)</option>
+                                    <option value="category_between">Between Categories (בין קטגוריות)</option>
+                                    <option value="sidebar">Sidebar (סיידבר - תמונה)</option>
+                                    <option value="sidebar_video">Sidebar Video (סיידבר - וידאו)</option>
+                                    <option value="sidebar_bottom">Sidebar Bottom (סיידבר תחתון)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div className="mt-4 flex gap-2">
+                          <button onClick={handleCreateAd} className="bg-green-600 text-white px-6 py-2 rounded font-bold hover:bg-green-700 transition">צור שטח פרסום</button>
+                          <button onClick={() => setIsCreatingAd(false)} className="text-gray-500 px-6 py-2 hover:bg-gray-100 rounded transition">ביטול</button>
+                        </div>
+                    </div>
+                 )}
                  
                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {ads.map(ad => (
@@ -560,24 +602,35 @@ export const AdminDashboard: React.FC = () => {
                                     <h3 className="font-bold text-lg text-gray-900">{ad.title}</h3>
                                     <span className="text-xs text-gray-500 bg-gray-200 px-2 py-0.5 rounded uppercase">{ad.area}</span>
                                 </div>
-                                <div className={`w-3 h-3 rounded-full ${ad.isActive ? 'bg-green-500' : 'bg-red-500'}`} />
+                                <div className="flex gap-2">
+                                  <div className={`w-3 h-3 rounded-full ${ad.isActive ? 'bg-green-500' : 'bg-red-500'}`} />
+                                </div>
                             </div>
                             
                             <div className="aspect-video bg-gray-200 rounded-lg mb-4 overflow-hidden relative">
-                                {ad.slides.length > 0 && (
+                                {ad.slides && ad.slides.length > 0 && (
                                     <img src={ad.slides[0].imageUrl} alt="preview" className="w-full h-full object-cover opacity-70" />
                                 )}
                                 <div className="absolute inset-0 flex items-center justify-center bg-black/30 text-white font-bold text-sm">
-                                    {ad.slides.length} תמונות/סרטונים
+                                    {ad.slides ? ad.slides.length : 0} שקופיות
                                 </div>
                             </div>
 
-                            <button 
-                                onClick={() => startEditingAd(ad)}
-                                className="w-full bg-white border border-gray-300 text-gray-700 font-bold py-2 rounded-lg hover:bg-red-50 hover:text-red-700 hover:border-red-200 transition flex items-center justify-center gap-2"
-                            >
-                                <Edit2 size={16} /> ערוך קמפיין / נהל שקופיות
-                            </button>
+                            <div className="flex gap-2">
+                              <button 
+                                  onClick={() => startEditingAd(ad)}
+                                  className="flex-1 bg-white border border-gray-300 text-gray-700 font-bold py-2 rounded-lg hover:bg-red-50 hover:text-red-700 hover:border-red-200 transition flex items-center justify-center gap-2"
+                              >
+                                  <Edit2 size={16} /> ערוך
+                              </button>
+                              <button 
+                                onClick={() => handleDeleteAd(ad.id || (ad as any)._id)}
+                                className="p-2 border border-gray-200 text-gray-400 hover:text-red-600 hover:border-red-100 rounded-lg transition"
+                                title="מחק שטח פרסום"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
                         </div>
                     ))}
                  </div>
@@ -590,10 +643,10 @@ export const AdminDashboard: React.FC = () => {
                         <h3 className="text-2xl font-bold text-gray-900">עריכת קמפיין: {ads.find(a => (a.id === editingAdId || (a as any)._id === editingAdId))?.title}</h3>
                         <div className="flex gap-3">
                             <button onClick={addSlide} className="flex items-center gap-1 bg-gray-100 hover:bg-gray-200 text-gray-800 px-4 py-2 rounded-lg font-bold transition">
-                                <Plus size={16} /> הוסף תמונה/סרטון
+                                <Plus size={16} /> הוסף שקופית
                             </button>
                             <button onClick={saveAdChanges} className="flex items-center gap-1 bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-bold transition shadow-md">
-                                <Save size={16} /> שמור שינויים באתר
+                                <Save size={16} /> שמור הכל
                             </button>
                             <button onClick={cancelEditingAd} className="flex items-center gap-1 bg-red-50 text-red-700 hover:bg-red-100 px-4 py-2 rounded-lg font-bold transition">
                                 <XIcon size={16} /> ביטול
@@ -625,60 +678,33 @@ export const AdminDashboard: React.FC = () => {
 
                                 <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
                                     <div>
-                                        <label className="block text-xs font-bold text-gray-500 mb-1">תמונה (קישור או העלאה)</label>
-                                        <div className="flex gap-2">
-                                            <div className="relative flex-1">
-                                                <ImageIcon size={14} className="absolute top-3 right-3 text-gray-400" />
-                                                <input 
-                                                    type="text" 
-                                                    value={slide.imageUrl}
-                                                    onChange={(e) => updateSlide(index, 'imageUrl', e.target.value)}
-                                                    className="w-full pl-3 pr-9 py-2 bg-white border border-gray-300 rounded text-sm focus:ring-1 focus:ring-red-500 outline-none"
-                                                />
-                                            </div>
-                                             <label className="cursor-pointer bg-white border border-gray-300 hover:bg-gray-50 text-gray-600 px-3 py-2 rounded flex items-center justify-center transition" title="העלה תמונה">
-                                                <Upload size={16} />
-                                                <input 
-                                                    type="file" 
-                                                    accept="image/*" 
-                                                    className="hidden"
-                                                    onChange={(e) => handleImageUpload(e, (url) => updateSlide(index, 'imageUrl', url))}
-                                                />
-                                            </label>
-                                        </div>
+                                        <label className="block text-xs font-bold text-gray-500 mb-1">תמונה (URL)</label>
+                                        <input 
+                                            type="text" 
+                                            value={slide.imageUrl}
+                                            onChange={(e) => updateSlide(index, 'imageUrl', e.target.value)}
+                                            className="w-full px-3 py-2 bg-white border border-gray-300 rounded text-sm focus:ring-1 focus:ring-red-500 outline-none"
+                                        />
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-bold text-gray-500 mb-1">קישור יעד (לאן השקופית תוביל?)</label>
-                                        <div className="relative">
-                                            <LinkIcon size={14} className="absolute top-3 right-3 text-gray-400" />
-                                            <input 
-                                                type="text" 
-                                                value={slide.linkUrl}
-                                                onChange={(e) => updateSlide(index, 'linkUrl', e.target.value)}
-                                                placeholder="https://example.com"
-                                                className="w-full pl-3 pr-9 py-2 bg-white border border-gray-300 rounded text-sm focus:ring-1 focus:ring-red-500 outline-none"
-                                            />
-                                        </div>
+                                        <label className="block text-xs font-bold text-gray-500 mb-1">קישור יעד (URL)</label>
+                                        <input 
+                                            type="text" 
+                                            value={slide.linkUrl}
+                                            onChange={(e) => updateSlide(index, 'linkUrl', e.target.value)}
+                                            placeholder="https://example.com"
+                                            className="w-full px-3 py-2 bg-white border border-gray-300 rounded text-sm focus:ring-1 focus:ring-red-500 outline-none"
+                                        />
                                     </div>
                                      <div className="md:col-span-2">
-                                        <label className="block text-xs font-bold text-gray-500 mb-1">קישור לוידאו (אופציונלי - יופיע במקום תמונה)</label>
-                                        <div className="relative flex gap-2">
-                                            <div className="relative flex-1">
-                                                <Video size={14} className="absolute top-3 right-3 text-gray-400" />
-                                                <input 
-                                                    type="text" 
-                                                    value={slide.videoUrl || ''}
-                                                    onChange={(e) => updateSlide(index, 'videoUrl', e.target.value)}
-                                                    placeholder="https://...mp4"
-                                                    className="w-full pl-3 pr-9 py-2 bg-white border border-gray-300 rounded text-sm focus:ring-1 focus:ring-red-500 outline-none"
-                                                />
-                                            </div>
-                                            {slide.videoUrl && (
-                                                <button onClick={() => updateSlide(index, 'videoUrl', '')} className="text-red-500 p-2 border rounded border-red-100 hover:bg-red-50">
-                                                    <Trash2 size={16} />
-                                                </button>
-                                            )}
-                                        </div>
+                                        <label className="block text-xs font-bold text-gray-500 mb-1">קישור לוידאו (אופציונלי)</label>
+                                        <input 
+                                            type="text" 
+                                            value={slide.videoUrl || ''}
+                                            onChange={(e) => updateSlide(index, 'videoUrl', e.target.value)}
+                                            placeholder="https://...mp4"
+                                            className="w-full px-3 py-2 bg-white border border-gray-300 rounded text-sm focus:ring-1 focus:ring-red-500 outline-none"
+                                        />
                                     </div>
                                 </div>
 

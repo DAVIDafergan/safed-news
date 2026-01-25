@@ -73,7 +73,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const [pRes, aRes, cRes] = await Promise.allSettled([
           axios.get(`${API_URL}/posts`),
           axios.get(`${API_URL}/ads`),
-          axios.get(`${API_URL}/comments`) // טעינת תגובות מהשרת
+          axios.get(`${API_URL}/comments`)
         ]);
 
         if (pRes.status === 'fulfilled') {
@@ -141,7 +141,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) { console.error("Views update failed"); }
   };
 
-  // --- תגובות (Comments) ---
   const addComment = async (commentData: Partial<Comment>) => {
     try {
       const res = await axios.post(`${API_URL}/comments`, commentData);
