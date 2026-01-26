@@ -765,12 +765,24 @@ export const AdminDashboard: React.FC = () => {
                                 <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
                                     <div>
                                         <label className="block text-xs font-bold text-gray-500 mb-1">תמונה (URL)</label>
-                                        <input 
-                                            type="text" 
-                                            value={slide.imageUrl}
-                                            onChange={(e) => updateSlide(index, 'imageUrl', e.target.value)}
-                                            className="w-full px-3 py-2 bg-white border border-gray-300 rounded text-sm focus:ring-1 focus:ring-red-500 outline-none"
-                                        />
+                                        <div className="flex gap-2">
+                                            <input 
+                                                type="text" 
+                                                value={slide.imageUrl}
+                                                onChange={(e) => updateSlide(index, 'imageUrl', e.target.value)}
+                                                className="w-full px-3 py-2 bg-white border border-gray-300 rounded text-sm focus:ring-1 focus:ring-red-500 outline-none"
+                                            />
+                                            <label className="cursor-pointer bg-gray-100 hover:bg-gray-200 text-gray-700 p-2 rounded-lg border border-gray-300" title="העלה תמונה">
+                                                <Upload size={16} />
+                                                <input 
+                                                    type="file" 
+                                                    accept="image/*" 
+                                                    className="hidden"
+                                                    onChange={(e) => handleImageUpload(e, (url) => updateSlide(index, 'imageUrl', url))}
+                                                />
+                                            </label>
+                                        </div>
+                                        <p className="text-xs text-gray-400 mt-1">מומלץ: 1200x300 (ראשי), 300x300 (צד)</p>
                                     </div>
                                     <div>
                                         <label className="block text-xs font-bold text-gray-500 mb-1">קישור יעד (URL)</label>
@@ -784,13 +796,25 @@ export const AdminDashboard: React.FC = () => {
                                     </div>
                                      <div className="md:col-span-2">
                                         <label className="block text-xs font-bold text-gray-500 mb-1">קישור לוידאו (אופציונלי)</label>
-                                        <input 
-                                            type="text" 
-                                            value={slide.videoUrl || ''}
-                                            onChange={(e) => updateSlide(index, 'videoUrl', e.target.value)}
-                                            placeholder="https://...mp4"
-                                            className="w-full px-3 py-2 bg-white border border-gray-300 rounded text-sm focus:ring-1 focus:ring-red-500 outline-none"
-                                        />
+                                        <div className="flex gap-2">
+                                            <input 
+                                                type="text" 
+                                                value={slide.videoUrl || ''}
+                                                onChange={(e) => updateSlide(index, 'videoUrl', e.target.value)}
+                                                placeholder="https://...mp4"
+                                                className="w-full px-3 py-2 bg-white border border-gray-300 rounded text-sm focus:ring-1 focus:ring-red-500 outline-none"
+                                            />
+                                            <label className="cursor-pointer bg-gray-100 hover:bg-gray-200 text-gray-700 p-2 rounded-lg border border-gray-300" title="העלה וידאו">
+                                                <Upload size={16} />
+                                                <input 
+                                                    type="file" 
+                                                    accept="video/*" 
+                                                    className="hidden"
+                                                    onChange={(e) => handleImageUpload(e, (url) => updateSlide(index, 'videoUrl', url))}
+                                                />
+                                            </label>
+                                        </div>
+                                        <p className="text-xs text-gray-400 mt-1">מומלץ: קובץ MP4, עד 10MB</p>
                                     </div>
                                 </div>
 
