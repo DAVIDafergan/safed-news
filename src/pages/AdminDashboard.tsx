@@ -269,7 +269,7 @@ export const AdminDashboard: React.FC = () => {
     setEditingSlides([]);
   };
 
-  // --- שמירת שינויים בבאנר (התיקון החשוב לשגיאה 500/CastError) ---
+  // --- שמירת שינויים בבאנר (התיקון החשוב לשגיאה 500) ---
   const saveAdChanges = async () => {
     if (editingAdId) {
       try {
@@ -281,19 +281,19 @@ export const AdminDashboard: React.FC = () => {
           }
 
           // --- Sanitization: ניקוי הנתונים לפני השליחה לשרת ---
+          // זה הקוד שמונע את השגיאה שראית בצילום המסך
           const sanitizedSlides = editingSlides.map((slide: any) => {
-              // 1. יצירת אובייקט נקי ללא שדות מיותרים
               const cleanSlide: any = {
                   imageUrl: slide.imageUrl,
-                  linkUrl: slide.linkUrl || '#', // הגנה מפני שדה ריק
-                  videoUrl: (slide.videoUrl || '').trim() // מחיקת רווחים וירידות שורה
+                  linkUrl: slide.linkUrl || '#',
+                  videoUrl: (slide.videoUrl || '').trim()
               };
 
-              // 2. שמירה על _id קיים רק אם הוא ObjectId אמיתי (מהמסד)
-              // (זה מונע את ההתנגשות עם ה-id הזמני שהדפדפן יצר)
-              if (slide._id) {
+              // אנחנו מוסיפים את ה-_id רק אם הוא קיים ותקין (לא '1' או משהו זמני)
+              if (slide._id && typeof slide._id === 'string' && slide._id.length === 24) {
                   cleanSlide._id = slide._id;
               }
+              // שיב לב: אנחנו *לא* מעבירים את השדה 'id' שהדפדפן יצר
               
               return cleanSlide;
           });
@@ -331,8 +331,8 @@ export const AdminDashboard: React.FC = () => {
 
   const addSlide = () => {
     const newSlide: AdSlide = {
-      id: Date.now().toString(),
-      imageUrl: 'https://safed-news-media.s3.eu-north-1.amazonaws.com/uploads/logo.png', // ברירת מחדל
+      id: Date.now().toString(), // זה יוצר את ה-ID הזמני שגרם לבעיה (הפונקציה saveAdChanges תמחוק אותו לפני השליחה)
+      imageUrl: 'https://safed-news-media.s3.eu-north-1.amazonaws.com/uploads/logo.png',
       linkUrl: '#', 
       videoUrl: ''
     };
