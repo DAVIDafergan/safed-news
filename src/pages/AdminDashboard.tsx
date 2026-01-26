@@ -269,7 +269,7 @@ export const AdminDashboard: React.FC = () => {
     setEditingSlides([]);
   };
 
-  // --- שמירת שינויים בבאנר (עם הגנה מפני שגיאות 500) ---
+  // --- שמירת שינויים בבאנר (התיקון החשוב לשגיאה 500/CastError) ---
   const saveAdChanges = async () => {
     if (editingAdId) {
       try {
@@ -280,13 +280,23 @@ export const AdminDashboard: React.FC = () => {
               return;
           }
 
-          // --- הגנה: ניקוי נתונים לפני שליחה ---
-          // ודא שאין שדות ריקים שעלולים להפיל את השרת
-          const sanitizedSlides = editingSlides.map(slide => ({
-              ...slide,
-              linkUrl: slide.linkUrl || '#', // אם אין קישור, שים סולמית
-              videoUrl: slide.videoUrl || ''
-          }));
+          // --- Sanitization: ניקוי הנתונים לפני השליחה לשרת ---
+          const sanitizedSlides = editingSlides.map((slide: any) => {
+              // 1. יצירת אובייקט נקי ללא שדות מיותרים
+              const cleanSlide: any = {
+                  imageUrl: slide.imageUrl,
+                  linkUrl: slide.linkUrl || '#', // הגנה מפני שדה ריק
+                  videoUrl: (slide.videoUrl || '').trim() // מחיקת רווחים וירידות שורה
+              };
+
+              // 2. שמירה על _id קיים רק אם הוא ObjectId אמיתי (מהמסד)
+              // (זה מונע את ההתנגשות עם ה-id הזמני שהדפדפן יצר)
+              if (slide._id) {
+                  cleanSlide._id = slide._id;
+              }
+              
+              return cleanSlide;
+          });
 
           const response = await fetch(`/api/ads/${editingAdId}`, {
               method: 'PATCH',
@@ -308,14 +318,13 @@ export const AdminDashboard: React.FC = () => {
               setEditingSlides([]);
               alert('השינויים נשמרו בהצלחה ויופיעו באתר!');
           } else {
-              // --- הצגת השגיאה האמיתית מהשרת ---
               const errorText = await response.text();
               console.error("Server Error:", errorText);
               alert(`שגיאה בשמירה לשרת (קוד ${response.status}):\n${errorText}`);
           }
       } catch (err) {
           console.error(err);
-          alert('שגיאה בתקשורת עם השרת (בדוק את החיבור לאינטרנט)');
+          alert('שגיאה בתקשורת עם השרת');
       }
     }
   };
