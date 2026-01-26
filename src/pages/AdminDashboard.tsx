@@ -10,13 +10,11 @@ export const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'posts' | 'ads' | 'users' | 'messages' | 'alerts' | 'newspaper'>('posts');
 
-  // --- פונקציית עזר חכמה למציאת הטוקן (מותאמת ללוג שלך) ---
+  // --- פונקציית עזר חכמה למציאת הטוקן ---
   const getToken = () => {
-    // 1. בדיקה האם הטוקן שמור ישירות
     const directToken = localStorage.getItem('x-auth-token') || localStorage.getItem('token');
     if (directToken) return directToken;
 
-    // 2. בדיקה בתוך safed_news_user (זה מה שראינו בלוג שלך!)
     try {
         const appUser = localStorage.getItem('safed_news_user');
         if (appUser) {
@@ -27,7 +25,6 @@ export const AdminDashboard: React.FC = () => {
         console.error("Error parsing safed_news_user", e);
     }
 
-    // 3. בדיקה בתוך user כללי (לגיבוי)
     try {
         const genericUser = localStorage.getItem('user');
         if (genericUser) {
@@ -81,7 +78,6 @@ export const AdminDashboard: React.FC = () => {
     category: Category.NEWS,
     excerpt: '',
     content: '',
-    // ברירת מחדל לוגו
     imageUrl: 'https://safed-news-media.s3.eu-north-1.amazonaws.com/uploads/logo.png',
     imageCredit: 'מערכת צפת בתנופה',
     tags: [],
@@ -256,7 +252,6 @@ export const AdminDashboard: React.FC = () => {
 
   // --- פונקציות ניהול באנרים ---
   
-  // (הערה: פונקציות יצירה ומחיקה הוסרו לבקשתך - מצב קבוע)
   const handleCreateAd = async () => {}; 
   const handleDeleteAd = async (id: string) => {};
 
@@ -274,16 +269,24 @@ export const AdminDashboard: React.FC = () => {
     setEditingSlides([]);
   };
 
-  // --- שמירת שינויים בבאנר (עם חיפוש טוקן חכם) ---
+  // --- שמירת שינויים בבאנר (עם הגנה מפני שגיאות 500) ---
   const saveAdChanges = async () => {
     if (editingAdId) {
       try {
           const token = getToken();
           
           if (!token) {
-              alert('שגיאת חיבור חמורה: המערכת לא מצליחה למצוא את פרטי המשתמש. נסה להתנתק ולהתחבר מחדש.');
+              alert('שגיאת חיבור: לא נמצא מזהה משתמש. נסה להתנתק ולהתחבר מחדש.');
               return;
           }
+
+          // --- הגנה: ניקוי נתונים לפני שליחה ---
+          // ודא שאין שדות ריקים שעלולים להפיל את השרת
+          const sanitizedSlides = editingSlides.map(slide => ({
+              ...slide,
+              linkUrl: slide.linkUrl || '#', // אם אין קישור, שים סולמית
+              videoUrl: slide.videoUrl || ''
+          }));
 
           const response = await fetch(`/api/ads/${editingAdId}`, {
               method: 'PATCH',
@@ -291,7 +294,7 @@ export const AdminDashboard: React.FC = () => {
                   'Content-Type': 'application/json',
                   'x-auth-token': token
               },
-              body: JSON.stringify({ slides: editingSlides })
+              body: JSON.stringify({ slides: sanitizedSlides })
           });
           
           if (response.status === 401) {
@@ -300,16 +303,19 @@ export const AdminDashboard: React.FC = () => {
           }
 
           if (response.ok) {
-              updateAd(editingAdId, { slides: editingSlides });
+              updateAd(editingAdId, { slides: sanitizedSlides });
               setEditingAdId(null);
               setEditingSlides([]);
               alert('השינויים נשמרו בהצלחה ויופיעו באתר!');
           } else {
-              alert('שגיאה בשמירת השינויים לשרת');
+              // --- הצגת השגיאה האמיתית מהשרת ---
+              const errorText = await response.text();
+              console.error("Server Error:", errorText);
+              alert(`שגיאה בשמירה לשרת (קוד ${response.status}):\n${errorText}`);
           }
       } catch (err) {
           console.error(err);
-          alert('שגיאה בתקשורת עם השרת');
+          alert('שגיאה בתקשורת עם השרת (בדוק את החיבור לאינטרנט)');
       }
     }
   };
@@ -318,7 +324,7 @@ export const AdminDashboard: React.FC = () => {
     const newSlide: AdSlide = {
       id: Date.now().toString(),
       imageUrl: 'https://safed-news-media.s3.eu-north-1.amazonaws.com/uploads/logo.png', // ברירת מחדל
-      linkUrl: '', 
+      linkUrl: '#', 
       videoUrl: ''
     };
     setEditingSlides([...editingSlides, newSlide]);
